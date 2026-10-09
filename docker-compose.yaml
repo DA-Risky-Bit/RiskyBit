@@ -6,12 +6,15 @@ services:
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
+      - "--providers.file.filename=/etc/traefik/dynamic_config.yml"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.middlewares=default-chain@file"
     ports:
       - "80:80"
       - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./config/traefik/dynamic_config.yml:/etc/traefik/dynamic_config.yml:ro
     networks:
       - public
     depends_on:
