@@ -1,0 +1,188 @@
+services:
+  # Traefik Reverse Proxy
+  traefik:
+    image: traefik:v3.7
+    container_name: risky-bit-traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - public
+    depends_on:
+      - admin-frontend
+      - chat-frontend
+      - challenge-frontend
+      - auth-backend
+
+  # admin.localhost
+  admin-frontend:
+    image: ghcr.io/da-risky-bit/admin-frontend:latest
+    container_name: risky-bit-admin-frontend
+    build:
+      context: ./admin-frontend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.admin.rule=Host(`admin.localhost`)"
+      - "traefik.http.routers.admin.entrypoints=web"
+      - "traefik.http.services.admin.loadbalancer.server.port=3000"
+    networks:
+      - public
+
+  # chat.localhost
+  chat-frontend:
+    image: ghcr.io/da-risky-bit/chat-frontend:latest
+    container_name: risky-bit-chat-frontend
+    build:
+      context: ./chat-frontend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.chat-fe.rule=Host(`chat.localhost`)"
+      - "traefik.http.routers.chat-fe.entrypoints=web"
+      - "traefik.http.services.chat-fe.loadbalancer.server.port=3000"
+    networks:
+      - public
+
+  # app.localhost
+  challenge-frontend:
+    image: ghcr.io/da-risky-bit/challenge-frontend:latest
+    container_name: risky-bit-challenge-frontend
+    build:
+      context: ./challenge-frontend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.challenge-fe.rule=Host(`app.localhost`)"
+      - "traefik.http.routers.challenge-fe.entrypoints=web"
+      - "traefik.http.services.challenge-fe.loadbalancer.server.port=3000"
+    networks:
+      - public
+
+  # api.localhost (Main Backend Entry Point & Gateway)
+  auth-backend:
+    image: ghcr.io/da-risky-bit/auth-backend:latest
+    container_name: risky-bit-auth-backend
+    build:
+      context: ./auth-backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth-be.rule=Host(`api.localhost`)"
+      - "traefik.http.routers.auth-be.entrypoints=web"
+      - "traefik.http.services.auth-be.loadbalancer.server.port=3000"
+    networks:
+      - public
+      - internal-backend
+    depends_on:
+      - chat-backend
+      - leaderboard-backend
+      - docker-backend
+
+  chat-backend:
+    image: ghcr.io/da-risky-bit/chat-backend:latest
+    container_name: risky-bit-chat-backend
+    build:
+      context: ./chat-backend
+    networks:
+      - internal-backend
+    depends_on:
+      - db
+      - ollama
+
+  leaderboard-backend:
+    image: ghcr.io/da-risky-bit/leaderboard-backend:latest
+    container_name: risky-bit-leaderboard-backend
+    build:
+      context: ./leaderboard-backend
+    networks:
+      - internal-backend
+    depends_on:
+      - db
+
+  docker-backend:
+    image: ghcr.io/da-risky-bit/docker-backend:latest
+    container_name: risky-bit-docker-backend
+    build:
+      context: ./docker-backend
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - internal-backend
+    depends_on:
+      - db
+
+  db:
+    image: postgres:latest
+    container_name: risky-bit-db
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./config/db:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_PASSWORD: secretpassword
+    networks:
+      - internal-backend
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-gpu
+    volumes:
+      - ollama_data:/root/.ollama
+      - .config/ai/runner/entrypoint.sh:/entrypoint.sh
+    entrypoint: ["/entrypoint.sh"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+          count: all
+          capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_DEBUG=1
+      - OLLAMA_NUM_PARALLEL=4
+      - OLLAMA_MAX_LOADED_MODELS=2
+      - OLLAMA_KEEP_ALIVE=300
+    restart: unless-stopped
+    depends_on:
+      ollama-downloader:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      networks:
+        - internal-backend
+
+  ollama-downloader:
+    image: ollama/ollama:latest
+    container_name: ollama-downloader
+    volumes:
+      - ollama_data:/root/.ollama
+      - .config/ai/init/entrypoint.sh:/entrypoint.sh
+    entrypoint: ["/entrypoint.sh"]
+    environment:
+      - OLLAMA_MODEL=mistral
+    networks:
+      - public
+
+# The Images that are going to be used in Rust directly.
+#   client-os:
+#     image: debian:stable-slim
+#
+#   server-os:
+#     image: debian:stable-slim
+
+volumes:
+  ollama_data:
+  db_data:
+
+networks:
+  public:
+    internal: false
+  internal-backend:
+    internal: true
