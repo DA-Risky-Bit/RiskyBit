@@ -1,22 +1,22 @@
 [submodule "admin-frontend"]
 	path = admin-frontend
-	url = ./admin-frontend
+	url = https://github.com
 [submodule "auth-backend"]
 	path = auth-backend
-	url = ./auth-backend
+	url = https://github.com
 [submodule "challenge-frontend"]
 	path = challenge-frontend
-	url = ./challenge-frontend
+	url = https://github.com
 [submodule "chat-frontend"]
 	path = chat-frontend
-	url = ./chat-frontend
+	url = https://github.com
 [submodule "docker-backend"]
 	path = docker-backend
-	url = ./docker-backend
+	url = https://github.com
 [submodule "chat-backend"]
 	path = chat-backend
-	url = ./chat-backend
+	url = https://github.com
 [submodule "leaderboard-backend"]
 	path = leaderboard-backend
-	url = ./leaderboard-backend
+	url = https://github.com
 
