@@ -22,4 +22,5 @@ fi
 
 echo "Ollama is ready. Switching to foreground server..."
 kill $OLLAMA_PID
-wait
+wait $OLLAMA_PID 2>/dev/null
+exec /bin/ollama serve

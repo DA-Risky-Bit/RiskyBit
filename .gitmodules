@@ -1,0 +1,22 @@
+[submodule "admin-frontend"]
+	path = admin-frontend
+	url = ./admin-frontend
+[submodule "auth-backend"]
+	path = auth-backend
+	url = ./auth-backend
+[submodule "challenge-frontend"]
+	path = challenge-frontend
+	url = ./challenge-frontend
+[submodule "chat-frontend"]
+	path = chat-frontend
+	url = ./chat-frontend
+[submodule "docker-backend"]
+	path = docker-backend
+	url = ./docker-backend
+[submodule "chat-backend"]
+	path = chat-backend
+	url = ./chat-backend
+[submodule "leaderboard-backend"]
+	path = leaderboard-backend
+	url = ./leaderboard-backend
+

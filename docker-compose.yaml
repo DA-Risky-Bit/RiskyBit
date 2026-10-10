@@ -15,6 +15,9 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./config/traefik/dynamic_config.yml:/etc/traefik/dynamic_config.yml:ro
+    labels:
+      - "com.risky-bit.group=infra"
+      - "com.risky-bit.display-name=Traefik"
     networks:
       - public
     depends_on:
@@ -34,6 +37,8 @@ services:
       - "traefik.http.routers.admin.rule=Host(`admin.localhost`)"
       - "traefik.http.routers.admin.entrypoints=web"
       - "traefik.http.services.admin.loadbalancer.server.port=3000"
+      - "com.risky-bit.group=frontend"
+      - "com.risky-bit.display-name=Admin Frontend"
     networks:
       - public
 
@@ -48,6 +53,8 @@ services:
       - "traefik.http.routers.chat-fe.rule=Host(`chat.localhost`)"
       - "traefik.http.routers.chat-fe.entrypoints=web"
       - "traefik.http.services.chat-fe.loadbalancer.server.port=3000"
+      - "com.risky-bit.group=frontend"
+      - "com.risky-bit.display-name=Chat Frontend"
     networks:
       - public
 
@@ -62,6 +69,8 @@ services:
       - "traefik.http.routers.challenge-fe.rule=Host(`app.localhost`)"
       - "traefik.http.routers.challenge-fe.entrypoints=web"
       - "traefik.http.services.challenge-fe.loadbalancer.server.port=3000"
+      - "com.risky-bit.group=frontend"
+      - "com.risky-bit.display-name=Challenge Frontend"
     networks:
       - public
 
@@ -76,6 +85,8 @@ services:
       - "traefik.http.routers.auth-be.rule=Host(`api.localhost`)"
       - "traefik.http.routers.auth-be.entrypoints=web"
       - "traefik.http.services.auth-be.loadbalancer.server.port=3000"
+      - "com.risky-bit.group=backend"
+      - "com.risky-bit.display-name=Auth Backend (Gateway)"
     networks:
       - public
       - internal-backend
@@ -89,6 +100,9 @@ services:
     container_name: risky-bit-chat-backend
     build:
       context: ./chat-backend
+    labels:
+      - "com.risky-bit.group=backend"
+      - "com.risky-bit.display-name=Chat Backend"
     networks:
       - internal-backend
     depends_on:
@@ -100,6 +114,9 @@ services:
     container_name: risky-bit-leaderboard-backend
     build:
       context: ./leaderboard-backend
+    labels:
+      - "com.risky-bit.group=backend"
+      - "com.risky-bit.display-name=Leaderboard Backend"
     networks:
       - internal-backend
     depends_on:
@@ -112,6 +129,9 @@ services:
       context: ./docker-backend
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      - "com.risky-bit.group=backend"
+      - "com.risky-bit.display-name=Docker Backend"
     networks:
       - internal-backend
     depends_on:
@@ -121,10 +141,13 @@ services:
     image: postgres:latest
     container_name: risky-bit-db
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql
       - ./config/db:/docker-entrypoint-initdb.d
     environment:
       POSTGRES_PASSWORD: secretpassword
+    labels:
+      - "com.risky-bit.group=infra"
+      - "com.risky-bit.display-name=Postgres Database"
     networks:
       - internal-backend
 
@@ -133,15 +156,15 @@ services:
     container_name: ollama-gpu
     volumes:
       - ollama_data:/root/.ollama
-      - .config/ai/runner/entrypoint.sh:/entrypoint.sh
+      - ./config/ai/runner/entrypoint.sh:/entrypoint.sh
     entrypoint: ["/entrypoint.sh"]
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-          count: all
-          capabilities: [gpu]
+              count: all
+              capabilities: [gpu]
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - OLLAMA_HOST=0.0.0.0:11434
@@ -149,6 +172,9 @@ services:
       - OLLAMA_NUM_PARALLEL=4
       - OLLAMA_MAX_LOADED_MODELS=2
       - OLLAMA_KEEP_ALIVE=300
+    labels:
+      - "com.risky-bit.group=ai"
+      - "com.risky-bit.display-name=Ollama (GPU)"
     restart: unless-stopped
     depends_on:
       ollama-downloader:
@@ -158,18 +184,21 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      networks:
-        - internal-backend
+    networks:
+      - internal-backend
 
   ollama-downloader:
     image: ollama/ollama:latest
     container_name: ollama-downloader
     volumes:
       - ollama_data:/root/.ollama
-      - .config/ai/init/entrypoint.sh:/entrypoint.sh
+      - ./config/ai/init/entrypoint.sh:/entrypoint.sh
     entrypoint: ["/entrypoint.sh"]
     environment:
       - OLLAMA_MODEL=mistral
+    labels:
+      - "com.risky-bit.group=ai"
+      - "com.risky-bit.display-name=Ollama Model Downloader"
     networks:
       - public
 
