@@ -1,22 +1,21 @@
 [submodule "admin-frontend"]
 	path = admin-frontend
-	url = https://github.com
+	url = https://github.com/DA-Risky-Bit/admin-frontend.git
 [submodule "auth-backend"]
 	path = auth-backend
-	url = https://github.com
+	url = https://github.com/DA-Risky-Bit/auth-backend.git
 [submodule "challenge-frontend"]
 	path = challenge-frontend
-	url = https://github.com
+	url = https://github.com/DA-Risky-Bit/challenge-frontend.git
 [submodule "chat-frontend"]
 	path = chat-frontend
-	url = https://github.com
+	url = https://github.com/DA-Risky-Bit/chat-frontend.git
 [submodule "docker-backend"]
 	path = docker-backend
-	url = https://github.com
+	url = https://github.com/DA-Risky-Bit/docker-backend.git
 [submodule "chat-backend"]
 	path = chat-backend
-	url = https://github.com
+	url = https://github.com/DA-Risky-Bit/chat-backend.git
 [submodule "leaderboard-backend"]
 	path = leaderboard-backend
-	url = https://github.com
-
+	url = https://github.com/DA-Risky-Bit/leaderboard-backend.git
