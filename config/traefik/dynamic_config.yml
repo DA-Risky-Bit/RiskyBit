@@ -1,6 +1,5 @@
 http:
   middlewares:
-    # 1. Strips unwanted headers and sets CORS rules
     security-and-cors:
       headers:
         customResponseHeaders:
@@ -23,34 +22,28 @@ http:
         accessControlAllowCredentials: true
         accessControlMaxAge: 100
 
-    # 2. Rate limiting
     rate-limit:
       rateLimit:
         average: 100
         burst: 50
 
-    # 3. Gzip compression
     gzip-compress:
       compress:
         excludedContentTypes:
           - "text/event-stream"
-
           - "image/png"
           - "image/jpeg"
           - "image/gif"
           - "image/webp"
-
           - "application/zip"
           - "application/x-gzip"
           - "video/mp4"
 
-    # 4. Request size buffering
     request-limit:
       buffering:
         maxRequestBodyBytes: 10485760
         memRequestBodyBytes: 2097152
 
-    # 5. Combined chain for clean application
     default-chain:
       chain:
         middlewares:
@@ -58,5 +51,3 @@ http:
           - rate-limit
           - gzip-compress
           - request-limit
-
-  routers: {}

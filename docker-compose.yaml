@@ -6,6 +6,7 @@ services:
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
+      - "--providers.docker.exposedByDefault=false"
       - "--providers.file.filename=/etc/traefik/dynamic_config.yml"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.web.http.middlewares=default-chain@file"
@@ -201,13 +202,6 @@ services:
       - "com.risky-bit.display-name=Ollama Model Downloader"
     networks:
       - public
-
-# The Images that are going to be used in Rust directly.
-#   client-os:
-#     image: debian:stable-slim
-#
-#   server-os:
-#     image: debian:stable-slim
 
 volumes:
   ollama_data:
