@@ -146,7 +146,11 @@ services:
       - db_data:/var/lib/postgresql
       - ./config/db:/docker-entrypoint-initdb.d
     environment:
-      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB:       riskybit
+      ´POSTGRES_USER:    postgres
+      POSTGRES_PASSWORD: ${DB_PASS}
+      ADMIN_EMAIL:       ${ADMIN_EMAIL}
+      ADMIN_PASSWORD:    ${ADMIN_PASS}
     labels:
       - "com.risky-bit.group=infra"
       - "com.risky-bit.display-name=Postgres Database"
