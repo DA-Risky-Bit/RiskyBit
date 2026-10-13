@@ -7,14 +7,6 @@ trap 'on_err $? $LINENO "$BASH_COMMAND"' ERR
 
 die() { echo "Error: $1" >&2; exit "${2:-1}"; }
 
-dev=0
-for a in "$@"; do
-  case $a in
-    --dev) dev=1 ;;
-    *) die "unknown option: $a (supported: --dev)" 2 ;;
-  esac
-done
-
 step="locating the project directory"
 (cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null) \
   || die "could not resolve the project directory from '${BASH_SOURCE[0]}'."
