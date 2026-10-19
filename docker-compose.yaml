@@ -2,7 +2,6 @@ services:
   # Traefik Reverse Proxy
   traefik:
     image: traefik:v3.7
-    container_name: risky-bit-traefik
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
@@ -31,7 +30,6 @@ services:
   # admin.localhost
   admin-frontend:
     image: ghcr.io/da-risky-bit/admin-frontend:latest
-    container_name: risky-bit-admin-frontend
     build:
       context: ./admin-frontend
     labels:
@@ -47,7 +45,6 @@ services:
   # chat.localhost
   chat-frontend:
     image: ghcr.io/da-risky-bit/chat-frontend:latest
-    container_name: risky-bit-chat-frontend
     build:
       context: ./chat-frontend
     labels:
@@ -63,7 +60,6 @@ services:
   # app.localhost
   challenge-frontend:
     image: ghcr.io/da-risky-bit/challenge-frontend:latest
-    container_name: risky-bit-challenge-frontend
     build:
       context: ./challenge-frontend
     labels:
@@ -79,7 +75,6 @@ services:
   # api.localhost (Main Backend Entry Point & Gateway)
   auth-backend:
     image: ghcr.io/da-risky-bit/auth-backend:latest
-    container_name: risky-bit-auth-backend
     build:
       context: ./auth-backend
     labels:
@@ -99,7 +94,6 @@ services:
 
   chat-backend:
     image: ghcr.io/da-risky-bit/chat-backend:latest
-    container_name: risky-bit-chat-backend
     build:
       context: ./chat-backend
     labels:
@@ -113,7 +107,6 @@ services:
 
   leaderboard-backend:
     image: ghcr.io/da-risky-bit/leaderboard-backend:latest
-    container_name: risky-bit-leaderboard-backend
     build:
       context: ./leaderboard-backend
     labels:
@@ -126,7 +119,6 @@ services:
 
   docker-backend:
     image: ghcr.io/da-risky-bit/docker-backend:latest
-    container_name: risky-bit-docker-backend
     build:
       context: ./docker-backend
     volumes:
@@ -141,16 +133,15 @@ services:
 
   db:
     image: postgres:latest
-    container_name: risky-bit-db
     volumes:
       - db_data:/var/lib/postgresql
       - ./config/db:/docker-entrypoint-initdb.d
     environment:
-      POSTGRES_DB:       riskybit
-      ´POSTGRES_USER:    postgres
+      POSTGRES_DB: riskybit
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASS}
-      ADMIN_EMAIL:       ${ADMIN_EMAIL}
-      ADMIN_PASSWORD:    ${ADMIN_PASS}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASS}
     labels:
       - "com.risky-bit.group=infra"
       - "com.risky-bit.display-name=Postgres Database"
@@ -159,7 +150,6 @@ services:
 
   ollama:
     image: ollama/ollama:latest
-    container_name: ollama-gpu
     volumes:
       - ollama_data:/root/.ollama
       - ./config/ai/runner/entrypoint.sh:/entrypoint.sh
@@ -195,7 +185,6 @@ services:
 
   ollama-downloader:
     image: ollama/ollama:latest
-    container_name: ollama-downloader
     volumes:
       - ollama_data:/root/.ollama
       - ./config/ai/init/entrypoint.sh:/entrypoint.sh
