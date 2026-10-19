@@ -2,12 +2,6 @@
 
 $ErrorActionPreference = 'Stop'
 
-trap {
-    [Console]::Error.WriteLine("Error: $($_.Exception.Message) at line $($_.InvocationInfo.ScriptLineNumber): $($_.InvocationInfo.Line.Trim())")
-    if ($env:MANAGE_ELEVATED -eq '1') { Read-Host "Press Enter to close" | Out-Null }
-    exit 1
-}
-
 $ScriptDir  = $PSScriptRoot
 $scriptName = Split-Path -Leaf $PSCommandPath
 
@@ -75,23 +69,23 @@ foreach ($a in $args) {
 }
 
 # ---- Admin check / self-elevate ----
-$principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-$isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).
+               IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 if (-not $isAdmin) {
     Write-Host "This script requires administrator privileges. Prompting for elevation..."
 
-    # Re-run with the same PowerShell host (powershell.exe or pwsh.exe), same args, same folder.
-    $hostExe = (Get-Process -Id $PID).Path
-    $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"")
-    $argList += $args | ForEach-Object { "`"$_`"" }
+    $hostExe  = (Get-Process -Id $PID).Path
+    $fileArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath) + $args
 
-    # The elevated window is separate and closes on exit, so keep it open at the end.
-    $cmd = "`$env:MANAGE_ELEVATED='1'; & $hostExe " + ($argList -join ' ') + "; `$c=`$LASTEXITCODE; Read-Host 'Press Enter to close' | Out-Null; exit `$c"
-    $p = Start-Process -FilePath $hostExe `
-        -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $cmd) `
-        -WorkingDirectory $env:SystemRoot `
-        -Verb RunAs -Wait -PassThru
+    function Q([string]$s) { "'" + $s.Replace("'", "''") + "'" }
+    $call = '& ' + (Q $hostExe) + ' ' + (($fileArgs | ForEach-Object { Q $_ }) -join ' ')
+    $cmd  = "Set-Location -LiteralPath $(Q $PWD.Path); $call; `$c = `$LASTEXITCODE; " +
+            "Read-Host 'Press Enter to close' | Out-Null; exit `$c"
+    $enc  = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
+
+    $p = Start-Process -FilePath $hostExe -Verb RunAs -Wait -PassThru `
+            -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $enc)
     exit $p.ExitCode
 }
 
