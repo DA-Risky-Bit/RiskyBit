@@ -241,8 +241,13 @@ foreach ($file in Get-ChildItem -LiteralPath 'config' -Recurse -File) {
 # ---- Docker images ----
 $script:step = "getting docker images"
 Write-Host "Getting docker images..."
-if ($dev) { Invoke-Live docker @('compose', 'build') }
-else      { Invoke-Live docker @('compose', 'pull') }
+if ($dev) { 
+    Invoke-Live docker @('compose', 'build') 
+    Invoke-Live docker @('compose', 'pull', 'traefik', 'db', 'ollama')
+}
+else { 
+    Invoke-Live docker @('compose', 'pull') 
+}
 
 # ---- Header ----
 $width = 80
