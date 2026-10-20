@@ -103,6 +103,7 @@ step="getting docker images"
 echo "Getting docker images..."
 if [ $dev -eq 1 ]; then
     docker compose build
+    docker compose pull traefik db ollama
 else
     docker compose pull
 fi
