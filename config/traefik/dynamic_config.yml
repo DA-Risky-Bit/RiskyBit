@@ -19,6 +19,7 @@ http:
           - "http://admin.localhost"
           - "http://chat.localhost"
           - "http://app.localhost"
+          - "http://api.localhost"
         accessControlAllowCredentials: true
         accessControlMaxAge: 100
 

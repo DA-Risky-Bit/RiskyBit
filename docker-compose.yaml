@@ -87,7 +87,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.auth-be.rule=Host(`api.localhost`)"
       - "traefik.http.routers.auth-be.entrypoints=web"
-      - "traefik.http.services.auth-be.loadbalancer.server.port=3000"
+      - "traefik.http.services.auth-be.loadbalancer.server.port=3001"
       - "com.risky-bit.group=backend"
       - "com.risky-bit.display-name=Auth Backend (Gateway)"
     networks:
@@ -104,6 +104,7 @@ services:
       context: ./chat-backend
     labels:
       - "com.risky-bit.group=backend"
+      - "traefik.http.services.chat-be.loadbalancer.server.port=3001"
       - "com.risky-bit.display-name=Chat Backend"
     networks:
       - internal-backend
@@ -196,7 +197,7 @@ services:
       - ./config/ai/init/entrypoint.sh:/entrypoint.sh
     entrypoint: ["/entrypoint.sh"]
     environment:
-      - OLLAMA_MODEL=mistral
+      - OLLAMA_MODEL=qwen3:4b
     labels:
       - "com.risky-bit.group=ai"
       - "com.risky-bit.display-name=Ollama Model Downloader"
