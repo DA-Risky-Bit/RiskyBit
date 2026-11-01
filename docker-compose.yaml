@@ -87,7 +87,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.auth-be.rule=Host(`api.localhost`)"
       - "traefik.http.routers.auth-be.entrypoints=web"
-      - "traefik.http.services.auth-be.loadbalancer.server.port=3001"
+      - "traefik.http.services.auth-be.loadbalancer.server.port=3000"
       - "com.risky-bit.group=backend"
       - "com.risky-bit.display-name=Auth Backend (Gateway)"
     networks:
@@ -104,7 +104,7 @@ services:
       context: ./chat-backend
     labels:
       - "com.risky-bit.group=backend"
-      - "traefik.http.services.chat-be.loadbalancer.server.port=3001"
+      - "traefik.http.services.chat-be.loadbalancer.server.port=3003"
       - "com.risky-bit.display-name=Chat Backend"
     networks:
       - internal-backend
