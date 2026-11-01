@@ -1,8 +1,7 @@
 # Risky Bit
-> Diploma 2026/27
+> Diploma 2026/27 IN PROGRESS
 
 This project was made as the practical part of the team's diploma.
-
 
 ## Description
 RiskyBit is a software collection in Docker that aims to provide an environment to conduct hacking challenges for companies and schools. It features real systems and actual CVEs in a competitive environment.
