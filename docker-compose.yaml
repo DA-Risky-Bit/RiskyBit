@@ -38,6 +38,8 @@ services:
     image: ghcr.io/da-risky-bit/admin-frontend:latest
     build:
       context: ./admin-frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.admin.rule=Host(`admin.localhost`)"
