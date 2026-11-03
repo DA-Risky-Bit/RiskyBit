@@ -51,4 +51,3 @@ http:
           - security-and-cors
           - rate-limit
           - gzip-compress
-          - request-limit

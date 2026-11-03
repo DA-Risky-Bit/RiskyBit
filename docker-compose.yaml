@@ -1,3 +1,5 @@
+name: riskybit
+
 services:
   # Traefik Reverse Proxy
   traefik:
@@ -5,7 +7,7 @@ services:
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
-      - "--providers.docker.network=da-risky-bit_public"
+      - "--providers.docker.network=riskybit_public"
       - "--providers.docker.exposedByDefault=false"
       - "--providers.file.filename=/etc/traefik/dynamic_config.yml"
       - "--entrypoints.web.address=:80"
@@ -27,11 +29,6 @@ services:
       - "com.risky-bit.display-name=Traefik"
     networks:
       - public
-    depends_on:
-      - admin-frontend
-      - chat-frontend
-      - challenge-frontend
-      - auth-backend
 
   # admin.localhost
   admin-frontend:
@@ -44,6 +41,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.admin.rule=Host(`admin.localhost`)"
       - "traefik.http.routers.admin.entrypoints=web"
+      - "traefik.http.routers.admin.middlewares=request-limit@file"
       - "traefik.http.services.admin.loadbalancer.server.port=3000"
       - "com.risky-bit.group=frontend"
       - "com.risky-bit.display-name=Admin Frontend"
@@ -59,6 +57,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.chat-fe.rule=Host(`chat.localhost`)"
       - "traefik.http.routers.chat-fe.entrypoints=web"
+      - "traefik.http.routers.chat-fe.middlewares=request-limit@file"
       - "traefik.http.services.chat-fe.loadbalancer.server.port=3000"
       - "com.risky-bit.group=frontend"
       - "com.risky-bit.display-name=Chat Frontend"
@@ -74,6 +73,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.challenge-fe.rule=Host(`app.localhost`)"
       - "traefik.http.routers.challenge-fe.entrypoints=web"
+      - "traefik.http.routers.challenge-fe.middlewares=request-limit@file"
       - "traefik.http.services.challenge-fe.loadbalancer.server.port=3000"
       - "com.risky-bit.group=frontend"
       - "com.risky-bit.display-name=Challenge Frontend"
@@ -81,12 +81,14 @@ services:
       - public
 
   # api.localhost (Main Backend Entry Point & Gateway)
+  # No buffering middleware here: SSE streams must pass through unbuffered.
   auth-backend:
     image: ghcr.io/da-risky-bit/auth-backend:latest
     build:
       context: ./auth-backend
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=riskybit_public"
       - "traefik.http.routers.auth-be.rule=Host(`api.localhost`)"
       - "traefik.http.routers.auth-be.entrypoints=web"
       - "traefik.http.services.auth-be.loadbalancer.server.port=3000"
@@ -95,10 +97,6 @@ services:
     networks:
       - public
       - internal-backend
-    depends_on:
-      - chat-backend
-      - leaderboard-backend
-      - docker-backend
 
   chat-backend:
     image: ghcr.io/da-risky-bit/chat-backend:latest
@@ -106,7 +104,6 @@ services:
       context: ./chat-backend
     labels:
       - "com.risky-bit.group=backend"
-      - "traefik.http.services.chat-be.loadbalancer.server.port=3003"
       - "com.risky-bit.display-name=Chat Backend"
     networks:
       - internal-backend
