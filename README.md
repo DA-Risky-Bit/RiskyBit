@@ -1,5 +1,5 @@
-# Risky Bit
-> Diploma 2026/27 IN PROGRESS
+# Risky Bit (WIP)
+> Diploma 2026/27
 
 This project was made as the practical part of the team's diploma.
 
