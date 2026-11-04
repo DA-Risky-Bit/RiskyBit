@@ -129,6 +129,7 @@ services:
       context: ./docker-backend
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.yaml:/app/dist/docker-compose.yml
     labels:
       - "com.risky-bit.group=backend"
       - "com.risky-bit.display-name=Docker Backend"
