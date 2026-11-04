@@ -8,9 +8,13 @@ trap 'on_err $? $LINENO "$BASH_COMMAND"' ERR
 die() { echo "Error: $1" >&2; exit "${2:-1}"; }
 
 dev=0
+gpu=2
 for a in "$@"; do
   case $a in
     --dev) dev=1 ;;
+    amd)   gpu=0 ;;
+    nvidia)gpu=1 ;;
+    null)  gpu=2 ;;
     *) die "unknown option: $a (supported: --dev)" 2 ;;
   esac
 done
@@ -152,8 +156,16 @@ ADMIN_PASS=$(gpg --batch --decrypt --passphrase-file /etc/riskybit-host.key /etc
 [ -n "$DB_PASS" ]    || die "decrypted database password is empty. Re-run the setup command."
 [ -n "$ADMIN_PASS" ] || die "decrypted admin password is empty. Re-run the setup command."
 
+compose_files="./docker-compose.yaml"
+
+if [[ $gpu -eq 0 ]]; then
+    compose_files="${compose_files} -f ./compose.amd.yaml"
+elif [[ $gpu -eq 1 ]]; then
+    compose_files="${compose_files} -f ./compose.nvidia.yaml"
+fi
+
 step="starting containers"
-DB_PASS="$DB_PASS" ADMIN_PASS="$ADMIN_PASS" docker compose --env-file /etc/docker-app.env up -d
+DB_PASS="$DB_PASS" ADMIN_PASS="$ADMIN_PASS" docker compose --env-file /etc/docker-app.env -f $compose_files up -d
 
 unset DB_PASS
 unset ADMIN_PASS

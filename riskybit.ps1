@@ -49,10 +49,14 @@ Notes:
 
 # ---- Parse arguments ----
 $dev = $false
+$gpu = 'null'
 $positional = @()
 foreach ($a in $args) {
     if ($a -ceq '--dev') {
         $dev = $true
+    }
+    elseif ($a -ceq '--gpu') {
+        $gpu = 'used'
     }
     elseif ($a -ceq '-h' -or $a -ceq '--help') {
         Write-Output $usage
@@ -63,9 +67,20 @@ foreach ($a in $args) {
         [Console]::Error.WriteLine($usage)
         exit 1
     }
+    elseif ($gpu -ceq 'used') {
+        if ($a -cne 'nvidia' -and $a -cne 'amd') {
+            [Console]::Error.WriteLine("Error: --gpu flag only supports nvidia or amd")
+            exit 1
+        }
+        $gpu = $a
+    }
     else {
         $positional += $a
     }
+}
+if ($gpu -ceq 'used') {
+    [Console]::Error.WriteLine("Error: --gpu flag requires a value (nvidia or amd)")
+    exit 1
 }
 
 # ---- Admin check / self-elevate ----
@@ -119,6 +134,8 @@ if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
 # ---- Dispatch ----
 $extra = @()
 if ($dev) { $extra += '--dev' }
+if ($gpu -ceq "nvidia") { $extra += 'nvidia' }
+if ($gpu -ceq "amd") { $extra += 'amd' }
 
 $global:LASTEXITCODE = 0
 & $target @extra

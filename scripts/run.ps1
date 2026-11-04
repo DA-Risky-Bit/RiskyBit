@@ -143,9 +143,13 @@ Please run '.\riskybit.ps1 setup' to update the project's git and Docker images.
 
 # ---- Parse arguments ----
 $dev = $false
+$gpu = 2
 foreach ($a in $args) {
-    if ($a -ceq '--dev') { $dev = $true }
-    else { Die "unknown option: $a (supported: --dev)" 2 }
+    if     ($a -ceq '--dev')   { $dev = $true }
+    elseif ($a -ceq 'amd')     { $gpu = 0 }
+    elseif ($a -ceq 'nvidia')  { $gpu = 1 }
+    elseif ($a -ceq 'null')    { $gpu = 2 }
+    else { Die "unknown option: $a (supported: --dev, amd, nvidia)" 2 }
 }
 
 # ---- Paths ----
@@ -267,10 +271,25 @@ if (-not $adminPass) { Die "decrypted admin password is empty. Re-run the setup 
 
 # ---- Start containers ----
 $script:step = "starting containers"
+$composeFiles = @('./docker-compose.yaml')
+
+if ($gpu -eq 0) {
+    $composeFiles += './compose.amd.yaml'
+}
+elseif ($gpu -eq 1) {
+    $composeFiles += './compose.nvidia.yaml'
+}
+
+$composeArgs = @('compose', '--env-file', $envFile)
+foreach ($f in $composeFiles) {
+    $composeArgs += @('-f', $f)
+}
+$composeArgs += @('up', '-d')
+
 $env:DB_PASS    = $dbPass
 $env:ADMIN_PASS = $adminPass
 try {
-    Invoke-Native docker @('compose', '--env-file', $envFile, 'up', '-d') | Out-Null
+    Invoke-Native docker $composeArgs | Out-Null
 }
 finally {
     Remove-Item Env:\DB_PASS    -ErrorAction SilentlyContinue

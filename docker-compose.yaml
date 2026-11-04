@@ -161,15 +161,7 @@ services:
       - ollama_data:/root/.ollama
       - ./config/ai/runner/entrypoint.sh:/entrypoint.sh
     entrypoint: ["/entrypoint.sh"]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
       - OLLAMA_HOST=0.0.0.0:11434
       - OLLAMA_DEBUG=1
       - OLLAMA_NUM_PARALLEL=4
@@ -177,7 +169,7 @@ services:
       - OLLAMA_KEEP_ALIVE=300
     labels:
       - "com.risky-bit.group=ai"
-      - "com.risky-bit.display-name=Ollama (GPU)"
+      - "com.risky-bit.display-name=Ollama"
     restart: unless-stopped
     depends_on:
       ollama-downloader:

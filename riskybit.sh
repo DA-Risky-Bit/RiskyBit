@@ -45,16 +45,34 @@ Notes:
 "
 
 dev=0
+gpu="null"
 args=()
+
 for a in "$@"; do
   case $a in
-    --dev)     dev=1 ;;
-    -h|--help) echo "$__usage"; exit 0 ;;
-    -*)        echo "Error: unknown option: $a" >&2; echo "$__usage" >&2; exit 1 ;;
-    *)         args+=("$a") ;;
+    --dev)       dev=1 ;;
+    --gpu)       gpu="used" ;;
+    -h|--help)   echo "$__usage"; exit 0 ;;
+    -*)          echo "Error: unknown option: $a" >&2; echo "$__usage" >&2; exit 1 ;;
+    *)
+      if [ "$gpu" = "used" ]; then
+        if [ "$a" != "nvidia" ] && [ "$a" != "amd" ]; then
+            echo "Error: --gpu flag only supports nvidia or amd" >&2
+            exit 1
+        fi
+        gpu="$a"
+      else
+        args+=("$a")
+      fi
+      ;;
   esac
 done
+if [ "$gpu" = "used" ]; then
+    echo "Error: --gpu flag requires a value (nvidia or amd)" >&2
+    exit 1
+fi
 set -- "${args[@]}"
+
 
 if [ "$EUID" -ne 0 ]; then
     if ! command -v sudo >/dev/null 2>&1; then
@@ -68,7 +86,9 @@ fi
 while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 
 extra=()
-[ "$dev" -eq 1 ] && extra+=(--dev)
+[ "$dev" -eq 1 ]        && extra+=(--dev)
+[ "$gpu" == "amd" ]    && extra+=(amd)
+[ "$gpu" == "nvidia" ] && extra+=(nvidia)
 
 if [ -z "${1:-}" ]; then
   echo "Error: no command given." >&2
