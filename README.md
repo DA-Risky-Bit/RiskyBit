@@ -95,9 +95,26 @@ Start the containers
 | `status` | Shows each service's state, ports, CPU and memory usage |
 | `remove` | **Permanently** deletes the project, its volumes and the encryption key (asks first) |
 
-Option: `--dev` for developers. `setup` also updates the git submodules and builds the images locally, and `run` also verifies the submodules.
+### Options
+
+| Option | Description |
+|---|---|
+| `--dev` | For developers. `setup` also updates the git submodules and builds the images locally, and `run` also verifies the submodules |
+| `--gpu <amd\|nvidia>` | Enables GPU acceleration by adding the matching compose override (`compose.amd.yaml` or `compose.nvidia.yaml`) when starting the containers. Without this flag, the containers run on CPU only |
+| `-h`, `--help` | Shows the usage text |
 
 Use `./riskybit.sh <command>` on Linux and `.\riskybit.ps1 <command>` on Windows.
+
+Example, starting with an NVIDIA GPU:
+```Bash
+./riskybit.sh run --gpu nvidia
+```
+```PowerShell
+.\riskybit.ps1 run --gpu nvidia
+```
+
+> [!NOTE]
+> `--gpu` requires a value (`amd` or `nvidia`); anything else is rejected. Pass it with `run`, since that is the command that starts the containers.
 
 Once running, the frontends are available at:
 - Admin: `admin.localhost`
