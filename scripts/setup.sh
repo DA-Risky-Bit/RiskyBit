@@ -85,7 +85,7 @@ git pull  >/dev/null
 if [ $dev -eq 1 ]; then
     step="updating git submodules"
     echo "Pulling git submodules..."
-    git submodule update --init --recursive >/dev/null
+    git submodule update --init --recursive --remote >/dev/null
 fi
 
 step="preparing config files"

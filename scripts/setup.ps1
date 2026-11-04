@@ -208,7 +208,7 @@ Invoke-Native git @('pull')  | Out-Null
 if ($dev) {
     $script:step = "updating git submodules"
     Write-Host "Pulling git submodules..."
-    Invoke-Native git @('submodule', 'update', '--init', '--recursive') | Out-Null
+    Invoke-Native git @('submodule', 'update', '--init', '--recursive', '--remote') | Out-Null
 }
 
 # ---- Config files: CRLF -> LF (text files only) ----
@@ -241,12 +241,12 @@ foreach ($file in Get-ChildItem -LiteralPath 'config' -Recurse -File) {
 # ---- Docker images ----
 $script:step = "getting docker images"
 Write-Host "Getting docker images..."
-if ($dev) { 
-    Invoke-Live docker @('compose', 'build') 
+if ($dev) {
+    Invoke-Live docker @('compose', 'build')
     Invoke-Live docker @('compose', 'pull', 'traefik', 'db', 'ollama')
 }
-else { 
-    Invoke-Live docker @('compose', 'pull') 
+else {
+    Invoke-Live docker @('compose', 'pull')
 }
 
 # ---- Header ----
