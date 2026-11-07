@@ -1,9 +1,14 @@
 name: riskybit
 
+x-images:
+  traefik: &traefik-image traefik:v3.7
+  postgres: &postgres-image postgres:18-alpine
+  ollama: &ollama-image ollama/ollama:0.40.15
+
 services:
   # Traefik Reverse Proxy
   traefik:
-    image: traefik:v3.7
+    image: *traefik-image
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
@@ -139,7 +144,7 @@ services:
       - db
 
   db:
-    image: postgres:latest
+    image: *postgres-image
     volumes:
       - db_data:/var/lib/postgresql
       - ./config/db:/docker-entrypoint-initdb.d
@@ -156,7 +161,7 @@ services:
       - internal-backend
 
   ollama:
-    image: ollama/ollama:latest
+    image: *ollama-image
     volumes:
       - ollama_data:/root/.ollama
       - ./config/ai/runner/entrypoint.sh:/entrypoint.sh
@@ -183,7 +188,7 @@ services:
       - internal-backend
 
   ollama-downloader:
-    image: ollama/ollama:latest
+    image: *ollama-image
     volumes:
       - ollama_data:/root/.ollama
       - ./config/ai/init/entrypoint.sh:/entrypoint.sh
