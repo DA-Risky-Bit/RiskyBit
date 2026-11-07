@@ -18,6 +18,8 @@ Commands:
   run       Checks that the images are present and up to date, then starts
             all containers in the background. Refuses to start if they are
             missing or outdated.
+  update    Pulls the latest git commits and the Docker images. Does not
+            restart anything; run 'run' afterwards to apply the update.
   down      Stops all containers. They are not deleted; use 'run' to start
             them again.
   status    Shows each service's state, ports, CPU and memory usage.
@@ -30,6 +32,8 @@ Options:
                   setup   also init/update git submodules, and build the
                           images locally instead of pulling them
                   run     also verifies that the git submodules are in sync
+                  update  also syncs git submodules, and rebuilds the
+                          images locally instead of pulling them
                   others  no effect
   -h, --help    Show this help
 
@@ -119,7 +123,7 @@ if ($positional.Count -gt 1) {
 
 $command = $positional[0]
 
-if ($command -cnotin @('setup', 'run', 'down', 'status', 'remove')) {
+if ($command -cnotin @('setup', 'update', 'run', 'down', 'status', 'remove')) {
     [Console]::Error.WriteLine("Error: unknown command: $command")
     [Console]::Error.WriteLine($usage)
     exit 1

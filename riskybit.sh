@@ -17,6 +17,8 @@ Commands:
   run       Checks that the images are present and up to date, then starts
             all containers in the background. Refuses to start if they are
             missing or outdated.
+  update    Pulls the latest git commits and the Docker images. Does not
+            restart anything; run 'run' afterwards to apply the update.
   down      Stops all containers. They are not deleted; use 'run' to start
             them again.
   status    Shows each service's state, ports, CPU and memory usage.
@@ -29,6 +31,8 @@ Options:
                   setup   also init/update git submodules, and build the
                           images locally instead of pulling them
                   run     also verifies that the git submodules are in sync
+                  update  also syncs git submodules, and rebuilds the
+                          images locally instead of pulling them
                   others  no effect
   -h, --help    Show this help
 
@@ -103,8 +107,8 @@ if [ "$#" -gt 1 ]; then
 fi
 
 case $1 in
-  setup|run|down|status|remove) ;;
-  *) echo "Error: unknown command: $1" >&2; echo "$__usage" >&2; exit 1 ;;
+    setup|update|run|down|status|remove) ;;
+    *) echo "Error: unknown command: $1" >&2; echo "$__usage" >&2; exit 1 ;;
 esac
 
 if [ ! -f "$SCRIPT_DIR/scripts/$1.sh" ]; then
@@ -115,6 +119,7 @@ fi
 case $1 in
   setup)  bash "$SCRIPT_DIR/scripts/setup.sh"   "${extra[@]}";;
   run)    bash "$SCRIPT_DIR/scripts/run.sh"     "${extra[@]}";;
+  update) bash "$SCRIPT_DIR/scripts/update.sh"  "${extra[@]}";;
   down)   bash "$SCRIPT_DIR/scripts/down.sh"    "${extra[@]}";;
   status) bash "$SCRIPT_DIR/scripts/status.sh"  "${extra[@]}";;
   remove) bash "$SCRIPT_DIR/scripts/remove.sh"  "${extra[@]}";;

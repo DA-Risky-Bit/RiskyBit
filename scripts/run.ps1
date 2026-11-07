@@ -138,7 +138,7 @@ $errImagesOutdated = @"
 
 Docker images are not up to date.
 
-Please run '.\riskybit.ps1 setup' to update the project's git and Docker images.
+Please run '.\riskybit.ps1 update' to update the project's git repository and Docker images.
 "@
 
 # ---- Parse arguments ----
