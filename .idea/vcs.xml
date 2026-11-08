@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/admin-frontend" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/auth-backend" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/challenge-frontend" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/chat-backend" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/chat-frontend" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/docker-backend" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/leaderboard-backend" vcs="Git" />
+  </component>
+</project>
