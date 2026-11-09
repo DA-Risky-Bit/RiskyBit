@@ -58,7 +58,8 @@ if [ $dev -eq 1 ]; then
     step="updating git submodules"
     echo "Updating git submodules..."
     git submodule sync --recursive >/dev/null
-    git submodule update --init --recursive >/dev/null
+    git submodule update --init --recursive --remote >/dev/null
+    git submodule foreach --recursive 'git switch main >/dev/null && git pull --ff-only >/dev/null'
 fi
 
 step="preparing config files"

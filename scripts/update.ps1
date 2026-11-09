@@ -121,7 +121,8 @@ if ($dev) {
     $script:step = "updating git submodules"
     Write-Host "Updating git submodules..."
     Invoke-Native git @('submodule', 'sync', '--recursive') | Out-Null
-    Invoke-Native git @('submodule', 'update', '--init', '--recursive') | Out-Null
+    Invoke-Native git @('submodule', 'update', '--init', '--recursive', '--remote') | Out-Null
+    Invoke-Native git @('submodule', 'foreach', '--recursive', 'git switch -q main && git pull -q --ff-only') | Out-Null
 }
 
 # ---- Config files: CRLF -> LF (text files only) ----
