@@ -25,7 +25,6 @@ services:
       - "--accesslog.filters.statuscodes=400-599"
     ports:
       - "80:80"
-      - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./config/traefik/dynamic_config.yml:/etc/traefik/dynamic_config.yml:ro
