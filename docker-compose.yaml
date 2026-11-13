@@ -112,6 +112,8 @@ services:
       - "com.risky-bit.display-name=Chat Backend"
     networks:
       - internal-backend
+    volumes:
+      - ./chat-backend/logs/:/app/logs/
     depends_on:
       - db
       - ollama
