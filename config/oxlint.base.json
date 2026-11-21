@@ -1,0 +1,5 @@
+{
+  "categories": { "correctness": "error" },
+  "plugins": ["typescript", "import", "unicorn"],
+  "ignorePatterns": ["node_modules", "dist", "build", ".react-router"]
+}
