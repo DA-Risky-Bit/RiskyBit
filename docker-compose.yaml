@@ -195,9 +195,10 @@ services:
     volumes:
       - ollama_data:/root/.ollama
       - ./config/ai/init/entrypoint.sh:/entrypoint.sh
+      - ./config/ai/Modelfile:/Modelfile
     entrypoint: ["/entrypoint.sh"]
     environment:
-      - OLLAMA_MODEL=qwen3:4b
+      - OLLAMA_MODEL=rb_qwen
     labels:
       - "com.risky-bit.group=ai"
       - "com.risky-bit.display-name=Ollama Model Downloader"

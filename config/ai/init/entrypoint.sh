@@ -11,7 +11,7 @@ until ollama list > /dev/null 2>&1; do
 done
 
 echo "Downloading $MODEL_NAME..."
-ollama pull "$MODEL_NAME"
+ollama create "$MODEL_NAME" -f ./Modelfile
 
 echo "Download complete. Shutting down downloader container."
 kill $PID
