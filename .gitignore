@@ -1,2 +1,3 @@
 .idea
-express-backend.postman_collection.json
+config/traefik/certs/local-key.pem
+config/traefik/certs/local.pem

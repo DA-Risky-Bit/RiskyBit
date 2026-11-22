@@ -1,3 +1,13 @@
+tls:
+  certificates:
+    - certFile: /certs/local.pem
+      keyFile: /certs/local-key.pem
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /certs/local.pem
+        keyFile: /certs/local-key.pem
+
 http:
   middlewares:
     security-and-cors:
@@ -6,22 +16,6 @@ http:
           Server: ""
           X-Powered-By: ""
           ETag: ""
-        accessControlAllowMethods:
-          - "GET"
-          - "POST"
-          - "PUT"
-          - "DELETE"
-          - "OPTIONS"
-        accessControlAllowHeaders:
-          - "Content-Type"
-          - "Authorization"
-        accessControlAllowOriginList:
-          - "http://admin.localhost"
-          - "http://chat.localhost"
-          - "http://app.localhost"
-          - "http://api.localhost"
-        accessControlAllowCredentials: true
-        accessControlMaxAge: 100
 
     rate-limit:
       rateLimit:

@@ -16,7 +16,11 @@ services:
       - "--providers.docker.exposedByDefault=false"
       - "--providers.file.filename=/etc/traefik/dynamic_config.yml"
       - "--entrypoints.web.address=:80"
-      - "--entrypoints.web.http.middlewares=default-chain@file"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.http.tls=true"
+      - "--entrypoints.websecure.http.middlewares=default-chain@file"
       - "--entryPoints.web.http.aliasHeadersStrategy=delete"
       - "--entryPoints.traefik.http.aliasHeadersStrategy=delete"
       - "--log.level=INFO"
@@ -25,26 +29,28 @@ services:
       - "--accesslog.filters.statuscodes=400-599"
     ports:
       - "80:80"
+      - "443:443"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./config/traefik/dynamic_config.yml:/etc/traefik/dynamic_config.yml:ro
+      - ./config/traefik/certs:/certs:ro
     labels:
       - "com.risky-bit.group=infra"
       - "com.risky-bit.display-name=Traefik"
     networks:
       - public
 
-  # admin.localhost
+  # admin.riskybit.at
   admin-frontend:
     image: ghcr.io/da-risky-bit/admin-frontend:latest
     build:
       context: ./admin-frontend
       args:
-        VITE_API_URL: ${VITE_API_URL}
+        VITE_API_URL: ${VITE_API_URL:-https://api.riskybit.at}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.admin.rule=Host(`admin.localhost`)"
-      - "traefik.http.routers.admin.entrypoints=web"
+      - "traefik.http.routers.admin.rule=Host(`admin.riskybit.at`)"
+      - "traefik.http.routers.admin.entrypoints=websecure"
       - "traefik.http.routers.admin.middlewares=request-limit@file"
       - "traefik.http.services.admin.loadbalancer.server.port=3000"
       - "com.risky-bit.group=frontend"
@@ -52,15 +58,15 @@ services:
     networks:
       - public
 
-  # chat.localhost
+  # chat.riskybit.at
   chat-frontend:
     image: ghcr.io/da-risky-bit/chat-frontend:latest
     build:
       context: ./chat-frontend
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.chat-fe.rule=Host(`chat.localhost`)"
-      - "traefik.http.routers.chat-fe.entrypoints=web"
+      - "traefik.http.routers.chat-fe.rule=Host(`chat.riskybit.at`)"
+      - "traefik.http.routers.chat-fe.entrypoints=websecure"
       - "traefik.http.routers.chat-fe.middlewares=request-limit@file"
       - "traefik.http.services.chat-fe.loadbalancer.server.port=3000"
       - "com.risky-bit.group=frontend"
@@ -68,15 +74,18 @@ services:
     networks:
       - public
 
-  # app.localhost
+  # app.riskybit.at
   challenge-frontend:
     image: ghcr.io/da-risky-bit/challenge-frontend:latest
     build:
       context: ./challenge-frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://api.riskybit.at}
+        VITE_WS_URL:  ${VITE_WS_URL:-wss://api.riskybit.at}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.challenge-fe.rule=Host(`app.localhost`)"
-      - "traefik.http.routers.challenge-fe.entrypoints=web"
+      - "traefik.http.routers.challenge-fe.rule=Host(`app.riskybit.at`)"
+      - "traefik.http.routers.challenge-fe.entrypoints=websecure"
       - "traefik.http.routers.challenge-fe.middlewares=request-limit@file"
       - "traefik.http.services.challenge-fe.loadbalancer.server.port=3000"
       - "com.risky-bit.group=frontend"
@@ -84,8 +93,7 @@ services:
     networks:
       - public
 
-  # api.localhost (Main Backend Entry Point & Gateway)
-  # No buffering middleware here: SSE streams must pass through unbuffered.
+  # api.riskybit.at (Main Backend Entry Point & Gateway)
   auth-backend:
     image: ghcr.io/da-risky-bit/auth-backend:latest
     build:
@@ -93,11 +101,22 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=riskybit_public"
-      - "traefik.http.routers.auth-be.rule=Host(`api.localhost`)"
-      - "traefik.http.routers.auth-be.entrypoints=web"
+      - "traefik.http.routers.auth-be.rule=Host(`api.riskybit.at`)"
+      - "traefik.http.routers.auth-be.entrypoints=websecure"
       - "traefik.http.services.auth-be.loadbalancer.server.port=3000"
       - "com.risky-bit.group=backend"
       - "com.risky-bit.display-name=Auth Backend (Gateway)"
+    environment:
+      - PGHOST=db
+      - PGPORT=5432
+      - PGUSER=postgres
+      - PGPASSWORD=${DB_PASS:-postgres_default_password}
+      - PGDATABASE=riskybit
+      - JWT_SECRET=${JWT_SECRET:-super_secret_fallback_key_change_me}
+      - CSRF_SECRET=${CSRF_SECRET:-super_secret_fallback_key_change_me}
+      - INTERNAL_SECRET=${INTERNAL_SECRET:-super_secret_fallback_key_change_me}
+      - COOKIE_DOMAIN=${COOKIE_DOMAIN:-.riskybit.at}
+      - PORT=3000
     networks:
       - public
       - internal-backend
@@ -109,6 +128,13 @@ services:
     labels:
       - "com.risky-bit.group=backend"
       - "com.risky-bit.display-name=Chat Backend"
+    environment:
+      - PGHOST=db
+      - PGPORT=5432
+      - PGUSER=postgres
+      - PGPASSWORD=${DB_PASS:-postgres_default_password}
+      - PGDATABASE=riskybit
+      - INTERNAL_JWT_SECRET=${INTERNAL_SECRET:-super_secret_fallback_key_change_me}
     networks:
       - internal-backend
     volumes:
@@ -124,6 +150,13 @@ services:
     labels:
       - "com.risky-bit.group=backend"
       - "com.risky-bit.display-name=Leaderboard Backend"
+    environment:
+      - PGHOST=db
+      - PGPORT=5432
+      - PGUSER=postgres
+      - PGPASSWORD=${DB_PASS:-postgres_default_password}
+      - PGDATABASE=riskybit
+      - INTERNAL_JWT_SECRET=${INTERNAL_SECRET:-super_secret_fallback_key_change_me}
     networks:
       - internal-backend
     depends_on:
@@ -136,6 +169,13 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./docker-compose.yaml:/app/dist/docker-compose.yml
+    environment:
+      - PGHOST=db
+      - PGPORT=5432
+      - PGUSER=postgres
+      - PGPASSWORD=${DB_PASS:-postgres_default_password}
+      - PGDATABASE=riskybit
+      - INTERNAL_JWT_SECRET=${INTERNAL_SECRET:-super_secret_fallback_key_change_me}
     labels:
       - "com.risky-bit.group=backend"
       - "com.risky-bit.display-name=Docker Backend"
@@ -149,17 +189,44 @@ services:
     volumes:
       - db_data:/var/lib/postgresql
       - ./config/db:/docker-entrypoint-initdb.d
+    ports:
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_DB: riskybit
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASS}
-      ADMIN_EMAIL: ${ADMIN_EMAIL}
-      ADMIN_PASSWORD: ${ADMIN_PASS}
+      POSTGRES_PASSWORD: ${DB_PASS:-postgres_default_password}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin_default_pass}
     labels:
       - "com.risky-bit.group=infra"
       - "com.risky-bit.display-name=Postgres Database"
     networks:
       - internal-backend
+      - db-access
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d riskybit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  db-migrate:
+    image: *postgres-image
+    entrypoint: ["sh", "-c", "psql -v ON_ERROR_STOP=1 -f /docker-entrypoint-initdb.d/00-bootstrap.sql && sh /docker-entrypoint-initdb.d/02-migrate.sh"]
+    environment:
+      PGHOST: db
+      PGUSER: postgres
+      PGPASSWORD: ${DB_PASS:-postgres_default_password}
+      PGDATABASE: riskybit
+    volumes:
+      - ./config/db:/docker-entrypoint-initdb.d:ro
+    labels:
+      - "com.risky-bit.group=infra"
+      - "com.risky-bit.display-name=DB Migrations"
+    networks:
+      - internal-backend
+    depends_on:
+      db:
+        condition: service_healthy
 
   ollama:
     image: *ollama-image
@@ -214,3 +281,5 @@ networks:
     internal: false
   internal-backend:
     internal: true
+  db-access:
+    internal: false
