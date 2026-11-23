@@ -115,13 +115,14 @@ if ($positional.Count -eq 0) {
     exit 1
 }
 
-if ($positional.Count -gt 1) {
-    [Console]::Error.WriteLine("Error: too many arguments (expected one command, got $($positional.Count)): $($positional -join ' ')")
+if ($positional.Count -gt 2) {
+    [Console]::Error.WriteLine("Error: too many arguments (expected command and optional service name, got $($positional.Count)): $($positional -join ' ')")
     [Console]::Error.WriteLine($usage)
     exit 1
 }
 
 $command = $positional[0]
+$serviceName = if ($positional.Count -gt 1) { $positional[1] } else { $null }
 
 if ($command -cnotin @('setup', 'update', 'run', 'down', 'status', 'remove')) {
     [Console]::Error.WriteLine("Error: unknown command: $command")
@@ -139,7 +140,8 @@ if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
 $extra = @()
 if ($dev) { $extra += '--dev' }
 if ($gpu -ceq "nvidia") { $extra += 'nvidia' }
-if ($gpu -ceq "amd") { $extra += 'amd' }
+elseif ($gpu -ceq "amd") { $extra += 'amd' }
+if ($serviceName) { $extra += $serviceName }
 
 $global:LASTEXITCODE = 0
 & $target @extra

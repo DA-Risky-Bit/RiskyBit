@@ -40,16 +40,16 @@ services:
     networks:
       - public
 
-  # admin.riskybit.at
+  # admin.${DOMAIN}
   admin-frontend:
     image: ghcr.io/da-risky-bit/admin-frontend:latest
     build:
       context: ./admin-frontend
       args:
-        VITE_API_URL: ${VITE_API_URL:-https://api.riskybit.at}
+        VITE_API_URL: https://api.${DOMAIN:?DOMAIN must be set}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.admin.rule=Host(`admin.riskybit.at`)"
+      - "traefik.http.routers.admin.rule=Host(`admin.${DOMAIN:?DOMAIN must be set}`)"
       - "traefik.http.routers.admin.entrypoints=websecure"
       - "traefik.http.routers.admin.middlewares=request-limit@file"
       - "traefik.http.services.admin.loadbalancer.server.port=3000"
@@ -58,16 +58,16 @@ services:
     networks:
       - public
 
-  # chat.riskybit.at
+  # chat.${DOMAIN}
   chat-frontend:
     image: ghcr.io/da-risky-bit/chat-frontend:latest
     build:
       context: ./chat-frontend
       args:
-        VITE_API_URL: ${VITE_API_URL:-https://api.riskybit.at}
+        VITE_API_URL: https://api.${DOMAIN:?DOMAIN must be set}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.chat-fe.rule=Host(`chat.riskybit.at`)"
+      - "traefik.http.routers.chat-fe.rule=Host(`chat.${DOMAIN:?DOMAIN must be set}`)"
       - "traefik.http.routers.chat-fe.entrypoints=websecure"
       - "traefik.http.routers.chat-fe.middlewares=request-limit@file"
       - "traefik.http.services.chat-fe.loadbalancer.server.port=3000"
@@ -76,17 +76,17 @@ services:
     networks:
       - public
 
-  # app.riskybit.at
+  # app.${DOMAIN}
   challenge-frontend:
     image: ghcr.io/da-risky-bit/challenge-frontend:latest
     build:
       context: ./challenge-frontend
       args:
-        VITE_API_URL: ${VITE_API_URL:-https://api.riskybit.at}
-        VITE_WS_URL:  ${VITE_WS_URL:-wss://api.riskybit.at}
+        VITE_API_URL: https://api.${DOMAIN:?DOMAIN must be set}
+        VITE_WS_URL:  wss://api.${DOMAIN:?DOMAIN must be set}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.challenge-fe.rule=Host(`app.riskybit.at`)"
+      - "traefik.http.routers.challenge-fe.rule=Host(`app.${DOMAIN:?DOMAIN must be set}`)"
       - "traefik.http.routers.challenge-fe.entrypoints=websecure"
       - "traefik.http.routers.challenge-fe.middlewares=request-limit@file"
       - "traefik.http.services.challenge-fe.loadbalancer.server.port=3000"
@@ -95,7 +95,7 @@ services:
     networks:
       - public
 
-  # api.riskybit.at (Main Backend Entry Point & Gateway)
+  # api.${DOMAIN} (Main Backend Entry Point & Gateway)
   auth-backend:
     image: ghcr.io/da-risky-bit/auth-backend:latest
     build:
@@ -103,7 +103,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=riskybit_public"
-      - "traefik.http.routers.auth-be.rule=Host(`api.riskybit.at`)"
+      - "traefik.http.routers.auth-be.rule=Host(`api.${DOMAIN:?DOMAIN must be set}`)"
       - "traefik.http.routers.auth-be.entrypoints=websecure"
       - "traefik.http.services.auth-be.loadbalancer.server.port=3000"
       - "com.risky-bit.group=backend"
@@ -112,12 +112,12 @@ services:
       - PGHOST=db
       - PGPORT=5432
       - PGUSER=postgres
-      - PGPASSWORD=${DB_PASS:-postgres_default_password}
+      - PGPASSWORD=${DB_PASS:?DB_PASS must be set}
       - PGDATABASE=riskybit
-      - JWT_SECRET=${JWT_SECRET:-super_secret_fallback_key_change_me}
-      - CSRF_SECRET=${CSRF_SECRET:-super_secret_fallback_key_change_me}
-      - INTERNAL_SECRET=${INTERNAL_SECRET:-super_secret_fallback_key_change_me}
-      - COOKIE_DOMAIN=${COOKIE_DOMAIN:-.riskybit.at}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
+      - CSRF_SECRET=${CSRF_SECRET:?CSRF_SECRET must be set}
+      - INTERNAL_SECRET=${INTERNAL_SECRET:?INTERNAL_SECRET must be set}
+      - COOKIE_DOMAIN=.${DOMAIN:?DOMAIN must be set}
       - PORT=3000
     networks:
       - public
@@ -134,9 +134,9 @@ services:
       - PGHOST=db
       - PGPORT=5432
       - PGUSER=postgres
-      - PGPASSWORD=${DB_PASS:-postgres_default_password}
+      - PGPASSWORD=${DB_PASS:?DB_PASS must be set}
       - PGDATABASE=riskybit
-      - INTERNAL_JWT_SECRET=${INTERNAL_SECRET:-super_secret_fallback_key_change_me}
+      - INTERNAL_JWT_SECRET=${INTERNAL_SECRET:?INTERNAL_SECRET must be set}
     networks:
       - internal-backend
     volumes:
@@ -156,9 +156,9 @@ services:
       - PGHOST=db
       - PGPORT=5432
       - PGUSER=postgres
-      - PGPASSWORD=${DB_PASS:-postgres_default_password}
+      - PGPASSWORD=${DB_PASS:?DB_PASS must be set}
       - PGDATABASE=riskybit
-      - INTERNAL_JWT_SECRET=${INTERNAL_SECRET:-super_secret_fallback_key_change_me}
+      - INTERNAL_JWT_SECRET=${INTERNAL_SECRET:?INTERNAL_SECRET must be set}
     networks:
       - internal-backend
     depends_on:
@@ -175,9 +175,9 @@ services:
       - PGHOST=db
       - PGPORT=5432
       - PGUSER=postgres
-      - PGPASSWORD=${DB_PASS:-postgres_default_password}
+      - PGPASSWORD=${DB_PASS:?DB_PASS must be set}
       - PGDATABASE=riskybit
-      - INTERNAL_JWT_SECRET=${INTERNAL_SECRET:-super_secret_fallback_key_change_me}
+      - INTERNAL_JWT_SECRET=${INTERNAL_SECRET:?INTERNAL_SECRET must be set}
     labels:
       - "com.risky-bit.group=backend"
       - "com.risky-bit.display-name=Docker Backend"
@@ -196,9 +196,9 @@ services:
     environment:
       POSTGRES_DB: riskybit
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASS:-postgres_default_password}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin_default_pass}
+      POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS must be set}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?ADMIN_EMAIL must be set}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
     labels:
       - "com.risky-bit.group=infra"
       - "com.risky-bit.display-name=Postgres Database"
@@ -217,7 +217,7 @@ services:
     environment:
       PGHOST: db
       PGUSER: postgres
-      PGPASSWORD: ${DB_PASS:-postgres_default_password}
+      PGPASSWORD: ${DB_PASS:?DB_PASS must be set}
       PGDATABASE: riskybit
     volumes:
       - ./config/db:/docker-entrypoint-initdb.d:ro

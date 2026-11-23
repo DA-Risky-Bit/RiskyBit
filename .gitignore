@@ -1,3 +1,2 @@
 .idea
-config/traefik/certs/local-key.pem
-config/traefik/certs/local.pem
+config/traefik/certs/*

@@ -94,29 +94,38 @@ extra=()
 [ "$gpu" == "amd" ]    && extra+=(amd)
 [ "$gpu" == "nvidia" ] && extra+=(nvidia)
 
-if [ -z "${1:-}" ]; then
+if [ -z "${args[0]:-}" ]; then
   echo "Error: no command given." >&2
   echo "$__usage" >&2
   exit 1
 fi
 
-if [ "$#" -gt 1 ]; then
-  echo "Error: too many arguments (expected one command, got $#): $*" >&2
+if [ "${#args[@]}" -gt 2 ]; then
+  echo "Error: too many arguments (expected command and optional service name, got ${#args[@]}): $*" >&2
   echo "$__usage" >&2
   exit 1
 fi
 
-case $1 in
+command="${args[0]}"
+service_name="${args[1]:-}"
+
+case $command in
     setup|update|run|down|status|remove) ;;
-    *) echo "Error: unknown command: $1" >&2; echo "$__usage" >&2; exit 1 ;;
+    *) echo "Error: unknown command: $command" >&2; echo "$__usage" >&2; exit 1 ;;
 esac
 
-if [ ! -f "$SCRIPT_DIR/scripts/$1.sh" ]; then
-  echo "Error: script not found: $SCRIPT_DIR/scripts/$1.sh" >&2
+if [ ! -f "$SCRIPT_DIR/scripts/$command.sh" ]; then
+  echo "Error: script not found: $SCRIPT_DIR/scripts/$command.sh" >&2
   exit 1
 fi
 
-case $1 in
+extra=()
+[ "$dev" -eq 1 ]        && extra+=(--dev)
+[ "$gpu" == "amd" ]    && extra+=(amd)
+[ "$gpu" == "nvidia" ] && extra+=(nvidia)
+[ -n "$service_name" ] && extra+=("$service_name")
+
+case $command in
   setup)  bash "$SCRIPT_DIR/scripts/setup.sh"   "${extra[@]}";;
   run)    bash "$SCRIPT_DIR/scripts/run.sh"     "${extra[@]}";;
   update) bash "$SCRIPT_DIR/scripts/update.sh"  "${extra[@]}";;

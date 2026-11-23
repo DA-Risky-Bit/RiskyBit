@@ -1,3 +1,5 @@
+#!/usr/bin/env powershell
+
 #Requires -Version 5.1
 
 $ErrorActionPreference = 'Stop'
@@ -54,6 +56,28 @@ function Get-Secret {
     finally { $ErrorActionPreference = $prev }
     if ($null -eq $out) { return '' }
     return (@($out) -join "`n").TrimEnd("`r", "`n")
+}
+
+# Parses KEY=VALUE text into a hashtable. Never evaluates anything: only whitelisted
+# keys are kept, values are taken literally (split on the first '='), and one pair
+# of surrounding quotes is stripped. Blank lines and # comments are ignored.
+function ConvertFrom-EnvText {
+    param([string]$Text, [string[]]$AllowedKeys)
+    $result = @{}
+    foreach ($line in ($Text -split "\r?\n")) {
+        if ([string]::IsNullOrWhiteSpace($line) -or $line.TrimStart().StartsWith('#')) { continue }
+        $idx = $line.IndexOf('=')
+        if ($idx -lt 1) { continue }
+        $key = $line.Substring(0, $idx).Trim()
+        $val = $line.Substring($idx + 1)
+        if ($key -cnotmatch '^[A-Za-z_][A-Za-z0-9_]*$') { continue }
+        if ($AllowedKeys -cnotcontains $key) { continue }
+        if ($val.Length -ge 2 -and (($val.StartsWith('"') -and $val.EndsWith('"')) -or ($val.StartsWith("'") -and $val.EndsWith("'")))) {
+            $val = $val.Substring(1, $val.Length - 2)
+        }
+        $result[$key] = $val
+    }
+    return $result
 }
 
 [Net.ServicePointManager]::SecurityProtocol =
@@ -149,15 +173,60 @@ foreach ($a in $args) {
     elseif ($a -ceq 'amd')     { $gpu = 0 }
     elseif ($a -ceq 'nvidia')  { $gpu = 1 }
     elseif ($a -ceq 'null')    { $gpu = 2 }
-    else { Die "unknown option: $a (supported: --dev, amd, nvidia)" 2 }
+    else { Die "unknown option: $a (supported: --dev, amd, nvidia, null)" 2 }
 }
 
 # ---- Paths ----
 $dataDir     = Join-Path $env:ProgramData 'riskybit'
 $envFile     = Join-Path $dataDir 'docker-app.env'
-$dbPassFile  = Join-Path $dataDir 'docker-password.gpg'
-$adminFile   = Join-Path $dataDir 'admin-password.gpg'
+$secretsFile = Join-Path $dataDir 'riskybit-secrets.gpg'
 $keyFile     = Join-Path $dataDir 'host.key'
+
+# ---- Setup configuration check paths early ----
+foreach ($f in $envFile, $secretsFile, $keyFile) {
+    if (-not (Test-Path -LiteralPath $f -PathType Leaf)) {
+        Die "missing setup configuration ($f). Please run the setup command first."
+    }
+}
+foreach ($f in $envFile, $secretsFile, $keyFile) {
+    try   { [IO.File]::OpenRead($f).Dispose() }
+    catch { Die "cannot read $f (you need to run as administrator). Run the setup command if it is missing." }
+}
+
+# ---- Read env file early for validation ----
+$script:step = "reading $envFile"
+$appEnv = ConvertFrom-EnvText ([IO.File]::ReadAllText($envFile)) @('ADMIN_EMAIL', 'DOMAIN')
+foreach ($k in 'ADMIN_EMAIL', 'DOMAIN') {
+    if (-not $appEnv[$k]) { Die "$k is missing in $envFile. Re-run the setup command." }
+}
+
+# ---- Decrypt secrets early for validation ----
+$script:step = "decrypting secrets (wrong or damaged host.key?)"
+$secretText = Get-Secret $keyFile $secretsFile
+if (-not $secretText) {
+    Die "could not decrypt $secretsFile (wrong or damaged host.key?). Re-run the setup command."
+}
+
+$secretKeys = @('ADMIN_PASSWORD', 'DB_PASS', 'JWT_SECRET', 'CSRF_SECRET', 'INTERNAL_SECRET')
+$secrets = ConvertFrom-EnvText $secretText $secretKeys
+$secretText = $null
+foreach ($k in $secretKeys) {
+    if (-not $secrets[$k]) { Die "$k is missing or empty in the decrypted secrets. Re-run the setup command." }
+}
+
+# Temporarily export variables for docker compose config validation
+foreach ($k in $secretKeys) { Set-Item -Path "Env:$k" -Value $secrets[$k] }
+Set-Item -Path "Env:DOMAIN" -Value $appEnv['DOMAIN']
+Set-Item -Path "Env:ADMIN_EMAIL" -Value $appEnv['ADMIN_EMAIL']
+
+# Determine compose files early so validation includes overrides
+$composeFiles = @('./docker-compose.yaml')
+if ($gpu -eq 0) {
+    $composeFiles += './compose.amd.yaml'
+}
+elseif ($gpu -eq 1) {
+    $composeFiles += './compose.nvidia.yaml'
+}
 
 # ---- Pre-flight checks ----
 $script:step = "running pre-flight checks"
@@ -173,9 +242,17 @@ if (-not (Test-Native { docker compose version }).Ok) {
 if (-not (Test-Native { docker info }).Ok) {
     Die "cannot connect to the Docker daemon. Is Docker Desktop running?"
 }
-$cfg = Test-Native { docker compose config -q }
+
+$script:step = "validating docker compose configuration"
+$configArgs = @('compose', '--env-file', $envFile)
+foreach ($f in $composeFiles) {
+    $configArgs += @('-f', $f)
+}
+$configArgs += @('config', '-q')
+
+$cfg = Test-Native { docker @configArgs }
 if (-not $cfg.Ok) {
-    Die "docker compose could not read the project in '$((Get-Location).Path)'. Run this from the project directory.`n$($cfg.Output)"
+    Die "docker compose configuration check failed.`n$($cfg.Output)"
 }
 
 # ---- Git updates ----
@@ -250,56 +327,29 @@ if ($outdated) {
     exit 1
 }
 
-# ---- Setup configuration ----
-$script:step = "checking setup configuration"
-foreach ($f in $envFile, $dbPassFile, $adminFile) {
-    if (-not (Test-Path -LiteralPath $f -PathType Leaf)) {
-        Die "missing setup configuration ($f). Please run the setup command first."
-    }
-}
-foreach ($f in $envFile, $dbPassFile, $adminFile, $keyFile) {
-    try   { [IO.File]::OpenRead($f).Dispose() }
-    catch { Die "cannot read $f (it is missing, or you need to run as administrator). Run the setup command if it is missing." }
-}
-
-# ---- Decrypt secrets ----
-$script:step = "decrypting secrets (wrong or damaged host.key?)"
-$dbPass    = Get-Secret $keyFile $dbPassFile
-$adminPass = Get-Secret $keyFile $adminFile
-if (-not $dbPass)    { Die "decrypted database password is empty. Re-run the setup command." }
-if (-not $adminPass) { Die "decrypted admin password is empty. Re-run the setup command." }
-
 # ---- Start containers ----
 $script:step = "starting containers"
-$composeFiles = @('./docker-compose.yaml')
-
-if ($gpu -eq 0) {
-    $composeFiles += './compose.amd.yaml'
-}
-elseif ($gpu -eq 1) {
-    $composeFiles += './compose.nvidia.yaml'
-}
-
 $composeArgs = @('compose', '--env-file', $envFile)
 foreach ($f in $composeFiles) {
     $composeArgs += @('-f', $f)
 }
 $composeArgs += @('up', '-d')
 
-$env:DB_PASS    = $dbPass
-$env:ADMIN_PASS = $adminPass
 try {
     Invoke-Native docker $composeArgs | Out-Null
 }
 finally {
-    Remove-Item Env:\DB_PASS    -ErrorAction SilentlyContinue
-    Remove-Item Env:\ADMIN_PASS -ErrorAction SilentlyContinue
-    $dbPass = $null
-    $adminPass = $null
+    # Clean up temporary environment variables
+    foreach ($k in $secretKeys) { Remove-Item "Env:$k" -ErrorAction SilentlyContinue }
+    Remove-Item "Env:DOMAIN" -ErrorAction SilentlyContinue
+    Remove-Item "Env:ADMIN_EMAIL" -ErrorAction SilentlyContinue
+    $secrets = $null
 }
 
-Write-Output "Admin Frontend running via admin.localhost"
-Write-Output "Chat Frontend running via chat.localhost"
-Write-Output "App Frontend running via app.localhost"
+$domain = $appEnv['DOMAIN']
+Write-Output "Admin Frontend running via admin.$domain"
+Write-Output "Chat Frontend running via chat.$domain"
+Write-Output "App Frontend running via app.$domain"
+Write-Output "API running via api.$domain"
 
 exit 0

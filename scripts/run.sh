@@ -7,6 +7,10 @@ trap 'on_err $? $LINENO "$BASH_COMMAND"' ERR
 
 die() { echo "Error: $1" >&2; exit "${2:-1}"; }
 
+ENV_FILE="/etc/docker-app.env"
+SECRETS_FILE="/etc/riskybit-secrets.gpg"
+HOST_KEY_FILE="/etc/riskybit-host.key"
+
 dev=0
 gpu=2
 for a in "$@"; do
@@ -15,7 +19,7 @@ for a in "$@"; do
     amd)   gpu=0 ;;
     nvidia)gpu=1 ;;
     null)  gpu=2 ;;
-    *) die "unknown option: $a (supported: --dev)" 2 ;;
+    *) die "unknown option: $a (supported: --dev, amd, nvidia, null)" 2 ;;
   esac
 done
 
@@ -67,16 +71,72 @@ remote_digest() {
     grep -i '^docker-content-digest:' <<<"$hdr" | awk '{print $2}' | tr -d '\r'
 }
 
+# parse_env <array-name> <allowed key>...
+# Reads KEY=VALUE lines from stdin into the associative array. Never sources or
+# evals the input: only whitelisted keys are kept, values are taken literally
+# (split on the first '='), CRLF and one pair of surrounding quotes are stripped.
+parse_env() {
+    local -n _out=$1
+    shift
+    local allowed=" $* " line key val
+    while IFS= read -r line || [ -n "$line" ]; do
+        line=${line%$'\r'}
+        [[ -z $line || $line == \#* || $line != *=* ]] && continue
+        key=${line%%=*}
+        val=${line#*=}
+        key=${key//[[:space:]]/}
+        [[ $key =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+        [[ $allowed == *" $key "* ]] || continue
+        if [[ ${#val} -ge 2 && ( ( $val == \"*\" ) || ( $val == \'*\' ) ) ]]; then
+            val=${val:1:${#val}-2}
+        fi
+        _out[$key]=$val
+    done
+}
+
+step="reading configuration for validation"
+[ -e "$ENV_FILE" ] || die "Missing $ENV_FILE"
+[ -e "$SECRETS_FILE" ] || die "Missing $SECRETS_FILE"
+[ -e "$HOST_KEY_FILE" ] || die "Missing $HOST_KEY_FILE"
+
+declare -A APP_ENV=()
+parse_env APP_ENV ADMIN_EMAIL DOMAIN < "$ENV_FILE"
+
+secrets_plain=$(gpg --batch --decrypt --passphrase-file "$HOST_KEY_FILE" "$SECRETS_FILE" 2>/dev/null) \
+    || die "could not decrypt $SECRETS_FILE"
+
+secret_keys=(ADMIN_PASSWORD DB_PASS JWT_SECRET CSRF_SECRET INTERNAL_SECRET)
+declare -A SECRETS=()
+parse_env SECRETS "${secret_keys[@]}" <<<"$secrets_plain"
+unset secrets_plain
+
+# Temporarily export for docker compose config validation
+export DOMAIN="${APP_ENV[DOMAIN]}"
+export ADMIN_EMAIL="${APP_ENV[ADMIN_EMAIL]}"
+for k in "${secret_keys[@]}"; do
+    export "$k=${SECRETS[$k]}"
+done
+
+compose_args=(-f ./docker-compose.yaml)
+if [[ $gpu -eq 0 ]]; then
+    compose_args+=(-f ./compose.amd.yaml)
+elif [[ $gpu -eq 1 ]]; then
+    compose_args+=(-f ./compose.nvidia.yaml)
+fi
+
 step="running pre-flight checks"
 for cmd in docker curl grep sed awk tr sort gpg; do
     command -v "$cmd" >/dev/null 2>&1 || die "required command not found: $cmd"
 done
+(( BASH_VERSINFO[0] > 4 || ( BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 3 ) )) \
+    || die "bash 4.3 or newer is required."
 docker compose version >/dev/null 2>&1 \
     || die "the 'docker compose' plugin is not available. Install Docker Compose v2."
 docker info >/dev/null 2>&1 \
     || die "cannot connect to the Docker daemon. Is it running, and do you have permission to use it?"
-if ! cfg_out=$(docker compose config -q 2>&1); then
-    die "docker compose could not read the project in '$(pwd)'. Run this from the project directory."$'\n'"$cfg_out"
+step="validating docker compose configuration"
+if ! cfg_out=$(docker compose --env-file "$ENV_FILE" "${compose_args[@]}" config -q 2>&1); then
+   die "docker compose configuration check failed."$'\n'$cfg_out
 fi
 
 step="fetching git updates"
@@ -141,37 +201,47 @@ if [ $outdated -eq 1 ]; then
 fi
 
 step="checking setup configuration"
-if [ ! -f /etc/docker-app.env ] || [ ! -f /etc/docker-password.gpg ] || [ ! -f /etc/admin-password.gpg ]; then
-    echo "❌ Missing setup configurations. Please run the setup command first."
-    exit 1
-fi
-
-for f in /etc/docker-app.env /etc/docker-password.gpg /etc/admin-password.gpg /etc/riskybit-host.key; do
-    [ -r "$f" ] || die "cannot read $f (it is missing, or you need to run as root). Run the setup command if it is missing."
+for f in "$ENV_FILE" "$SECRETS_FILE" "$HOST_KEY_FILE"; do
+    if [ ! -e "$f" ]; then
+        echo "❌ Missing setup configurations ($f). Please run the setup command first."
+        exit 1
+    fi
+    [ -r "$f" ] || die "cannot read $f (you need to run as root)."
 done
 
-step="decrypting secrets (wrong or damaged /etc/riskybit-host.key?)"
-DB_PASS=$(gpg --batch --decrypt --passphrase-file /etc/riskybit-host.key /etc/docker-password.gpg 2>/dev/null)
-ADMIN_PASS=$(gpg --batch --decrypt --passphrase-file /etc/riskybit-host.key /etc/admin-password.gpg 2>/dev/null)
-[ -n "$DB_PASS" ]    || die "decrypted database password is empty. Re-run the setup command."
-[ -n "$ADMIN_PASS" ] || die "decrypted admin password is empty. Re-run the setup command."
+step="reading $ENV_FILE"
+declare -A APP_ENV=()
+parse_env APP_ENV ADMIN_EMAIL DOMAIN < "$ENV_FILE"
+[ -n "${APP_ENV[ADMIN_EMAIL]:-}" ] || die "ADMIN_EMAIL is missing in $ENV_FILE. Re-run the setup command."
+[ -n "${APP_ENV[DOMAIN]:-}" ]      || die "DOMAIN is missing in $ENV_FILE. Re-run the setup command."
 
-compose_files="./docker-compose.yaml"
-
-if [[ $gpu -eq 0 ]]; then
-    compose_files="${compose_files} -f ./compose.amd.yaml"
-elif [[ $gpu -eq 1 ]]; then
-    compose_files="${compose_files} -f ./compose.nvidia.yaml"
+step="decrypting secrets (wrong or damaged $HOST_KEY_FILE?)"
+if ! secrets_plain=$(gpg --batch --decrypt --passphrase-file "$HOST_KEY_FILE" "$SECRETS_FILE" 2>/dev/null); then
+    die "could not decrypt $SECRETS_FILE (wrong or damaged $HOST_KEY_FILE?). Re-run the setup command."
 fi
 
+secret_keys=(ADMIN_PASSWORD DB_PASS JWT_SECRET CSRF_SECRET INTERNAL_SECRET)
+declare -A SECRETS=()
+parse_env SECRETS "${secret_keys[@]}" <<<"$secrets_plain"
+unset secrets_plain
+for k in "${secret_keys[@]}"; do
+    [ -n "${SECRETS[$k]:-}" ] || die "$k is missing or empty in the decrypted secrets. Re-run the setup command."
+done
+
 step="starting containers"
-DB_PASS="$DB_PASS" ADMIN_PASS="$ADMIN_PASS" docker compose --env-file /etc/docker-app.env -f $compose_files up -d
+# Secrets are exported only inside this subshell, so they never reach this shell's
+# environment or any process's argument list.
+(
+    for k in "${secret_keys[@]}"; do export "$k=${SECRETS[$k]}"; done
+    exec docker compose --env-file "$ENV_FILE" "${compose_args[@]}" up -d
+)
 
-unset DB_PASS
-unset ADMIN_PASS
+domain=${APP_ENV[DOMAIN]}
+unset SECRETS
 
-echo "Admin Frontend running via admin.localhost"
-echo "Chat Frontend running via chat.localhost"
-echo "App Frontend running via app.localhost"
+echo "Admin Frontend running via admin.$domain"
+echo "Chat Frontend running via chat.$domain"
+echo "App Frontend running via app.$domain"
+echo "API running via api.$domain"
 
 exit 0
