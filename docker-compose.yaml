@@ -3,7 +3,7 @@ name: riskybit
 x-images:
   traefik: &traefik-image traefik:v3.7
   postgres: &postgres-image postgres:18-alpine
-  ollama: &ollama-image ollama/ollama:latest
+  ollama: &ollama-image ollama/ollama:0.40.15
 
 services:
   # Traefik Reverse Proxy
