@@ -319,7 +319,7 @@ if ($certMode -eq '1') {
             '-addext', 'basicConstraints=critical,CA:TRUE,pathlen:0',
             '-addext', 'keyUsage=critical,keyCertSign,cRLSign',
             '-addext', "nameConstraints=critical,permitted;DNS:$domain",
-            '-out', $caPem)
+            '-out', $caPem) 2>$null
         Write-Host "--> Generated new CA (valid 10 years)."
     }
 
