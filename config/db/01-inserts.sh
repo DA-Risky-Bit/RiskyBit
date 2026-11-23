@@ -23,6 +23,8 @@ ON CONFLICT (id) DO UPDATE
         role     = 1,
         hashpass = EXCLUDED.hashpass,
         deleted  = false;
+
+SELECT public.regenerate_lobby_code();
 EOSQL
 
-echo "--> Admin user (id 0) initialized."
+echo "--> Admin user (id 0) and lobby code initialized."

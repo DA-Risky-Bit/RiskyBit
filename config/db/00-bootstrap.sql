@@ -109,6 +109,21 @@ CREATE TABLE IF NOT EXISTS public.users (
 COMMENT ON COLUMN public.users.role IS '0 = standard user (default), 1 = administrator';
 
 /* ============================================================================================== */
+/* TABLE: lobby_code (singleton: exactly one row, ever)                                           */
+/* ============================================================================================== */
+CREATE TABLE IF NOT EXISTS public.lobby_code (
+    id      boolean     NOT NULL DEFAULT true,
+    code    varchar     NOT NULL,
+    updated timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT pk_lobby_code PRIMARY KEY (id),
+    CONSTRAINT ck_lobby_code_singleton CHECK (id)   -- id can only be true, so only one row can exist
+);
+
+COMMENT ON TABLE public.lobby_code IS
+'Singleton table: holds the one and only lobby code. The boolean primary key is constrained to true, so a second row cannot be inserted.';
+
+
+/* ============================================================================================== */
 /* TRIGGERS                                                                                       */
 /* ============================================================================================== */
 CREATE OR REPLACE TRIGGER users_enforce_secure_pwd_storage
@@ -202,4 +217,46 @@ BEGIN
     DROP TABLE IF EXISTS pg_temp.update_scripts;
     RETURN NOT v_has_error;
 END;
+$$;
+
+
+/* ============================================================================================== */
+/* LOBBY CODE: guard, generator, regenerator                                                      */
+/* ============================================================================================== */
+CREATE OR REPLACE FUNCTION public.protect_lobby_code()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RAISE EXCEPTION 'lobby_code is a singleton and its row cannot be deleted';
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER lobby_code_no_delete
+    BEFORE DELETE OR TRUNCATE ON public.lobby_code
+    FOR EACH STATEMENT EXECUTE FUNCTION public.protect_lobby_code();
+
+CREATE OR REPLACE FUNCTION public.generate_lobby_code(p_length integer DEFAULT 6)
+RETURNS varchar
+LANGUAGE sql
+SET search_path = public, pg_catalog
+AS $$
+    -- 32-char alphabet (no I, O, 0, 1); masking with 31 avoids modulo bias.
+    SELECT string_agg(
+               substr('ABCDEFGHJKLMNPQRSTUVWXYZ23456789',
+                      (get_byte(gen_random_bytes(1), 0) & 31) + 1, 1),
+               '')::varchar
+      FROM generate_series(1, p_length);
+$$;
+
+CREATE OR REPLACE FUNCTION public.regenerate_lobby_code(p_length integer DEFAULT 6)
+RETURNS varchar
+LANGUAGE sql
+SET search_path = public, pg_catalog
+AS $$
+    INSERT INTO public.lobby_code (code)
+    VALUES (public.generate_lobby_code(p_length))
+    ON CONFLICT (id) DO UPDATE
+        SET code = EXCLUDED.code, updated = now()
+    RETURNING code;
 $$;
