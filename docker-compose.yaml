@@ -63,6 +63,8 @@ services:
     image: ghcr.io/da-risky-bit/chat-frontend:latest
     build:
       context: ./chat-frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://api.riskybit.at}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.chat-fe.rule=Host(`chat.riskybit.at`)"
