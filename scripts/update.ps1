@@ -70,10 +70,7 @@ if (-not $isAdmin) {
 
 # ---- Paths ----
 $dataDir    = Join-Path $env:ProgramData 'riskybit'
-$envFile    = Join-Path $dataDir 'docker-app.env'
-$dbPassFile = Join-Path $dataDir 'docker-password.gpg'
-$adminFile  = Join-Path $dataDir 'admin-password.gpg'
-$keyFile    = Join-Path $dataDir 'host.key'
+$secretFile    = Join-Path $dataDir 'riskybit-secrets.gpg'
 
 # ---- Pre-flight checks ----
 $script:step = "running pre-flight checks"
@@ -97,7 +94,7 @@ if (-not (Test-Path -LiteralPath 'config' -PathType Container)) {
 
 # ---- Setup configuration ----
 $script:step = "checking setup configuration"
-foreach ($f in $envFile, $dbPassFile, $adminFile, $keyFile) {
+foreach ($f in $secretFile) {
     if (-not (Test-Path -LiteralPath $f -PathType Leaf)) {
         Die "$f is missing. Please run the setup command first."
     }

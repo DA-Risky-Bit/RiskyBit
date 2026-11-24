@@ -37,7 +37,7 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
 [ -d config ] || die "config directory not found in '$(pwd)'. Run this from the project directory."
 
 step="checking setup configuration"
-for f in /etc/docker-app.env /etc/docker-password.gpg /etc/admin-password.gpg /etc/riskybit-host.key; do
+for f in /etc/riskybit-secrets.gpg; do
     [ -f "$f" ] || die "$f is missing. Please run the setup command first."
 done
 
