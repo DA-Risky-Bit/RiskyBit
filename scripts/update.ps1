@@ -1,3 +1,4 @@
+
 $ErrorActionPreference = 'Stop'
 $script:step = "starting up"
 
@@ -13,7 +14,7 @@ function Die {
     exit $Code
 }
 
-# Runs a command, never throws. Returns Ok, Lines and Output (stdout+stderr merged).
+# Runs a command, never throws. Returns Ok, Lines and Output.
 function Test-Native {
     param([scriptblock]$Command)
     $prev = $ErrorActionPreference
@@ -28,10 +29,15 @@ function Test-Native {
         $ok = $false
     }
     finally { $ErrorActionPreference = $prev }
-    [pscustomobject]@{ Ok = $ok; Lines = $lines; Output = ($lines -join "`n") }
+
+    [pscustomobject]@{
+        Ok     = $ok
+        Lines  = $lines
+        Output = ($lines -join "`n")
+    }
 }
 
-# Runs a native command quietly (stdout captured); throws on non-zero exit
+# Runs a native command quietly; throws on non-zero exit.
 function Invoke-Native {
     param([string]$Exe, [string[]]$Arguments)
     $out = & $Exe @Arguments
@@ -41,7 +47,7 @@ function Invoke-Native {
     return $out
 }
 
-# Runs a native command with live output; throws on non-zero exit
+# Runs a native command with live output; throws on non-zero exit.
 function Invoke-Live {
     param([string]$Exe, [string[]]$Arguments)
     & $Exe @Arguments | Out-Host
@@ -50,51 +56,144 @@ function Invoke-Live {
     }
 }
 
+# Load environment variables from docker-app.env.
+function Import-ProjectEnvironment {
+    param(
+        [string]$EnvFile,
+        [string]$SecretsFile,
+        [string]$KeyFile
+    )
+
+    foreach ($f in @($EnvFile, $SecretsFile, $KeyFile)) {
+        if (-not (Test-Path -LiteralPath $f -PathType Leaf)) {
+            throw "Required configuration file is missing: $f. Run setup first."
+        }
+    }
+
+    # Load non-secret environment variables.
+    foreach ($line in [IO.File]::ReadAllLines($EnvFile)) {
+        if ($line -match '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') {
+            [Environment]::SetEnvironmentVariable(
+                $matches[1],
+                $matches[2],
+                'Process'
+            )
+        }
+    }
+
+    # Decrypt secrets using a separate process.
+    $psi = New-Object Diagnostics.ProcessStartInfo
+    $psi.FileName = 'gpg'
+    $psi.Arguments = "--batch --quiet --pinentry-mode loopback --passphrase-file `"$KeyFile`" --decrypt `"$SecretsFile`""
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+
+    $proc = New-Object Diagnostics.Process
+    $proc.StartInfo = $psi
+
+    try {
+        [void]$proc.Start()
+
+        $stdoutTask = $proc.StandardOutput.ReadToEndAsync()
+        $stderrTask = $proc.StandardError.ReadToEndAsync()
+
+        $proc.WaitForExit()
+
+        $plaintext = $stdoutTask.Result
+        $stderr = $stderrTask.Result
+
+        if ($proc.ExitCode -ne 0) {
+            throw "Could not decrypt project secrets (GPG exit $($proc.ExitCode)): $stderr"
+        }
+
+        foreach ($line in ($plaintext -split "`r?`n")) {
+            if ($line -match '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') {
+                [Environment]::SetEnvironmentVariable(
+                    $matches[1],
+                    $matches[2],
+                    'Process'
+                )
+            }
+        }
+    }
+    finally {
+        if ($proc) { $proc.Dispose() }
+        $plaintext = $null
+    }
+
+    # Ensure all expected variables were loaded.
+    foreach ($v in @(
+        'ADMIN_EMAIL',
+        'ADMIN_PASSWORD',
+        'DOMAIN',
+        'DB_PASS',
+        'JWT_SECRET',
+        'CSRF_SECRET',
+        'INTERNAL_SECRET'
+    )) {
+        if ([string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($v, 'Process'))) {
+            throw "Required environment variable '$v' is missing or empty. Run setup again."
+        }
+    }
+}
+
 # ---- Parse arguments ----
 $dev = $false
 $gpu = 2
+
 foreach ($a in $args) {
-    if     ($a -ceq '--dev')   { $dev = $true }
-    elseif ($a -ceq 'amd')     { $gpu = 0 }
-    elseif ($a -ceq 'nvidia')  { $gpu = 1 }
-    elseif ($a -ceq 'null')    { $gpu = 2 }
-    else { Die "unknown option: $a (supported: --dev, amd, nvidia)" 2 }
+    if     ($a -ceq '--dev')  { $dev = $true }
+    elseif ($a -ceq 'amd')    { $gpu = 0 }
+    elseif ($a -ceq 'nvidia') { $gpu = 1 }
+    elseif ($a -ceq 'null')   { $gpu = 2 }
+    else { Die "unknown option: $a (supported: --dev, amd, nvidia, null)" 2 }
 }
 
 # ---- Admin check ----
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).
                IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
 if (-not $isAdmin) {
     Die "this script must be run as administrator. Run it via the main script or from an elevated PowerShell."
 }
 
 # ---- Paths ----
-$dataDir    = Join-Path $env:ProgramData 'riskybit'
-$secretFile    = Join-Path $dataDir 'riskybit-secrets.gpg'
+$dataDir     = Join-Path $env:ProgramData 'riskybit'
+$envFile     = Join-Path $dataDir 'docker-app.env'
+$secretsFile = Join-Path $dataDir 'riskybit-secrets.gpg'
+$keyFile     = Join-Path $dataDir 'host.key'
 
 # ---- Pre-flight checks ----
 $script:step = "running pre-flight checks"
-foreach ($cmd in 'docker', 'git') {
+
+foreach ($cmd in 'docker', 'git', 'gpg') {
     if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
         Die "required command not found: $cmd"
     }
 }
+
 if (-not (Test-Native { docker compose version }).Ok) {
     Die "the 'docker compose' plugin is not available. Install Docker Compose v2."
 }
+
 if (-not (Test-Native { docker info }).Ok) {
     Die "cannot connect to the Docker daemon. Is Docker Desktop running?"
 }
+
 if (-not (Test-Native { git rev-parse --is-inside-work-tree }).Ok) {
     Die "'$((Get-Location).Path)' is not inside a git repository. Run update from the project directory."
 }
+
 if (-not (Test-Path -LiteralPath 'config' -PathType Container)) {
     Die "config directory not found in '$((Get-Location).Path)'. Run this from the project directory."
 }
 
 # ---- Setup configuration ----
 $script:step = "checking setup configuration"
-foreach ($f in $secretFile) {
+
+foreach ($f in @($envFile, $secretsFile, $keyFile)) {
     if (-not (Test-Path -LiteralPath $f -PathType Leaf)) {
         Die "$f is missing. Please run the setup command first."
     }
@@ -102,14 +201,22 @@ foreach ($f in $secretFile) {
 
 # ---- Compose arguments ----
 $composeArgs = @('compose', '-f', './docker-compose.yaml')
-if ($gpu -eq 0)     { $composeArgs += @('-f', './compose.amd.yaml') }
-elseif ($gpu -eq 1) { $composeArgs += @('-f', './compose.nvidia.yaml') }
+
+if ($gpu -eq 0) {
+    $composeArgs += @('-f', './compose.amd.yaml')
+}
+elseif ($gpu -eq 1) {
+    $composeArgs += @('-f', './compose.nvidia.yaml')
+}
 
 # ---- Git ----
 $script:step = "pulling Github commits"
 Write-Host "Pulling last Github commits..."
+
 Invoke-Native git @('fetch') | Out-Null
+
 $pull = Test-Native { git pull --ff-only }
+
 if (-not $pull.Ok) {
     Die "git pull failed (local changes or diverged branch?). Resolve it manually and re-run update.`n$($pull.Output)"
 }
@@ -117,6 +224,7 @@ if (-not $pull.Ok) {
 if ($dev) {
     $script:step = "updating git submodules"
     Write-Host "Updating git submodules..."
+
     Invoke-Native git @('submodule', 'sync', '--recursive') | Out-Null
     Invoke-Native git @('submodule', 'update', '--init', '--recursive', '--remote') | Out-Null
     Invoke-Native git @('submodule', 'foreach', '--recursive', 'git switch -q main && git pull -q --ff-only') | Out-Null
@@ -125,13 +233,18 @@ if ($dev) {
 # ---- Config files: CRLF -> LF (text files only) ----
 $script:step = "preparing config files"
 Write-Host "Preparing files for docker..."
+
 foreach ($file in Get-ChildItem -LiteralPath 'config' -Recurse -File) {
     try {
         $bytes = [IO.File]::ReadAllBytes($file.FullName)
-        if ($bytes.Length -eq 0 -or [Array]::IndexOf($bytes, [byte]0) -ge 0) { continue }   # empty or binary
+
+        if ($bytes.Length -eq 0 -or [Array]::IndexOf($bytes, [byte]0) -ge 0) {
+            continue
+        }
 
         $out = New-Object 'System.Collections.Generic.List[byte]' $bytes.Length
         $changed = $false
+
         for ($i = 0; $i -lt $bytes.Length; $i++) {
             if ($bytes[$i] -eq 13 -and ($i + 1 -eq $bytes.Length -or $bytes[$i + 1] -eq 10)) {
                 $changed = $true
@@ -139,28 +252,66 @@ foreach ($file in Get-ChildItem -LiteralPath 'config' -Recurse -File) {
             }
             $out.Add($bytes[$i])
         }
-        if ($changed) { [IO.File]::WriteAllBytes($file.FullName, $out.ToArray()) }
+
+        if ($changed) {
+            [IO.File]::WriteAllBytes($file.FullName, $out.ToArray())
+        }
     }
     catch {
         [Console]::Error.WriteLine("Warning: could not normalize line endings of $($file.FullName): $($_.Exception.Message)")
     }
 }
 
+
+# ---- Load environment and secrets ----
+$script:step = "loading project environment"
+Write-Host "Loading project configuration and secrets..."
+
+Import-ProjectEnvironment `
+    -EnvFile $envFile `
+    -SecretsFile $secretsFile `
+    -KeyFile $keyFile
+
 # ---- Docker images ----
 $script:step = "updating docker images"
 Write-Host "Updating docker images..."
-if ($dev) {
-    Invoke-Live docker ($composeArgs + @('build'))
-    Invoke-Live docker ($composeArgs + @('pull', 'traefik', 'db', 'ollama'))
+
+try {
+    # Both build and pull inherit all loaded environment variables.
+    if ($dev) {
+        Write-Host "Building Docker images..."
+        Invoke-Live docker ($composeArgs + @('build'))
+
+        Write-Host "Pulling Docker images..."
+        Invoke-Live docker ($composeArgs + @('pull', 'traefik', 'db', 'ollama'))
+    }
+    else {
+        Invoke-Live docker ($composeArgs + @('pull'))
+    }
 }
-else {
-    Invoke-Live docker ($composeArgs + @('pull'))
+finally {
+    # Clean up only after all Docker operations have finished.
+    foreach ($v in @(
+        'ADMIN_EMAIL',
+        'ADMIN_PASSWORD',
+        'DOMAIN',
+        'DB_PASS',
+        'JWT_SECRET',
+        'CSRF_SECRET',
+        'INTERNAL_SECRET'
+    )) {
+        Remove-Item "Env:$v" -ErrorAction SilentlyContinue
+    }
 }
+
 
 # ---- Done ----
 $script:step = "checking running containers"
+
 $running = Test-Native { docker compose ps -q }
+
 Write-Output ""
+
 if ($running.Ok -and @($running.Lines | Where-Object { $_ }).Count -gt 0) {
     Write-Output "Update finished. Containers are still running the old images."
     Write-Output "Run '.\riskybit.ps1 run' to recreate them with the updated images."
