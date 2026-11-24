@@ -95,7 +95,13 @@ if (-not $isAdmin) {
     Write-Host "This script requires administrator privileges. Prompting for elevation..."
 
     $hostExe  = (Get-Process -Id $PID).Path
-    $fileArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath) + $args
+    $fileArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath)
+
+    if ($dev) { $fileArgs += '--dev' }
+    if ($gpu -ceq 'nvidia' -or $gpu -ceq 'amd') {
+        $fileArgs += @('--gpu', $gpu)
+    }
+    $fileArgs += $positional
 
     function Q([string]$s) { "'" + $s.Replace("'", "''") + "'" }
     $call = '& ' + (Q $hostExe) + ' ' + (($fileArgs | ForEach-Object { Q $_ }) -join ' ')

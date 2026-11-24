@@ -83,11 +83,18 @@ if [ "$EUID" -ne 0 ]; then
         echo "Error: this script requires root privileges, but 'sudo' is not installed. Re-run as root." >&2
         exit 1
     fi
+
     echo "This setup script requires root privileges. Prompting for sudo..."
+
     SCRIPT_PATH=$(realpath "$0")
-    exec sudo "$SCRIPT_PATH" "$@"
+
+    sudo_args=()
+    [ "$dev" -eq 1 ] && sudo_args+=(--dev)
+    [ "$gpu" != "null" ] && sudo_args+=(--gpu "$gpu")
+    sudo_args+=("${args[@]}")
+
+    exec sudo "$SCRIPT_PATH" "${sudo_args[@]}"
 fi
-while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 
 extra=()
 [ "$dev" -eq 1 ]        && extra+=(--dev)
